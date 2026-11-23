@@ -1,13 +1,14 @@
 // ============================================================
-// ¡CAMALEÓN! — rules engine
+// ¡CAMALEÓN! — rules engine (plays by the UNO Flex rules, with its own name and look)
 //
-// A colour-matching card game with two twists:
-//  🦎 Chameleon cards are split between TWO colours. When you play one, you choose which
-//     of its two colours it becomes — that is the colour the next player must follow.
-//  ⚡ Every player has one Power token. Play a chameleon card while your token is charged
-//     and you may use that card's power (☔ Rain, 🔁 Again, 🎁 Gift or ✌️ Double); the token
-//     is then spent. It recharges when somebody makes you take 2+ cards (+2 / Wild +4),
-//     and a Wild Chameleon recharges yours while switching everybody else's off.
+//  🦎 Flex cards have a normal colour and a second "flex" colour. Normally a flex card plays
+//     on its normal side. With your ⚡ Power Card on green you may play its FLEX side instead:
+//     it can then match its flex colour, and flex action / flex wild cards do their stronger
+//     flex effect. Either way the colour that carries on is the card's NORMAL colour (or the
+//     colour named for a wild). Using a flex side turns your Power Card red.
+//  ⚡ A Power Card goes back the other way when you play a number card with the 🔄 flip
+//     icon (it switches YOUR card over), when anyone plays a Wild All Flip (everybody's card
+//     switches over), and when every player's card is red at once (all turn green).
 //
 // This file has NO screen and NO Firebase code. Every move — mine, the bots', the guided
 // game's, a timeout — goes through Engine.apply(state, move, actorId), which returns the
@@ -23,25 +24,27 @@
   'use strict';
 
   // ---------- Cards ----------
-  // plain:     { id, c: 'red', v: '7' }            (also 'skip' / 'reverse' / 'draw2')
-  // chameleon: { id, c: 'red', c2: 'blue', v: '7', pw: 'rain' }
-  // wild:      { id, c: 'wild', v: 'wild' | 'wild4' | 'wildCham' }
+  // classic number:  { id, c: 'red', v: '7', flip?: true }        (🔄 flip icon on some)
+  // classic action:  { id, c: 'red', v: 'skip' | 'reverse' | 'draw2' }
+  // flex (number/action): { id, c: 'red', c2: 'blue', v: '7' | 'skip' | …, flex: true }
+  // wild:            { id, c: 'wild', v: 'wildFlip' }               (classic Wild All Flip)
+  // flex wild:       { id, c: 'wild', v: 'wildTarget2' | 'wildAllDraw' | 'wild4', flex: true }
   const COLORS = ['red', 'yellow', 'green', 'blue'];
-  const NUMBERS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  const NUMBERS = ['1', '2', '3', '4', '5', '6', '7', '8'];
   const ACTIONS = ['skip', 'reverse', 'draw2'];
-  const WILDS = ['wild', 'wild4', 'wildCham'];
-  const POWERS = ['rain', 'again', 'gift', 'double'];
+  const WILDS = ['wildFlip', 'wildTarget2', 'wildAllDraw', 'wild4'];
   const WILD_COLOR = 'wild';            // colour name stored on wild cards
   const isWildValue = v => WILDS.includes(v);
-  const isCham = card => !!(card && card.c2);
-  const colorsOf = card => (card.c2 ? [card.c, card.c2] : [card.c]);
+  const isWild = card => !!card && card.c === WILD_COLOR;
+  const isFlex = card => !!(card && card.flex);
+  // flex wilds whose flex side makes ONE chosen player draw
+  const TARGETED = { wildTarget2: 2, wild4: 4 };
 
   // Points left in a loser's hand go to the round winner
-  const POINTS = { skip: 20, reverse: 20, draw2: 20, wild: 40, wild4: 50, wildCham: 50 };
-  const CHAM_POINTS = 20;
-  const cardPoints = card => (isCham(card) ? CHAM_POINTS : NUMBERS.includes(card.v) ? Number(card.v) : (POINTS[card.v] || 0));
+  const cardPoints = card => NUMBERS.includes(card.v) ? Number(card.v) : isWild(card) ? 50 : 20;
 
   const HAND_SIZE = 7;
+  const MAX_PLAYERS = 8;                // there are 8 Power Cards
   const MATCH_TARGET = 500;
   const LOG_MAX = 24;
 
@@ -50,12 +53,12 @@
     'currentPlayerIndex', 'direction', 'phase', 'drawn', 'uno', 'ev', 'log', 'stats', 'seq',
     'winner', 'winnerName', 'winnerReason', 'roundPoints', 'points', 'matchWinner', 'matchTarget', 'roundNo'];
 
-  // ---------- Deck: 100 cards ----------
-  //  40 plain numbers (0–9 once per colour) · 24 chameleon cards (6 colour pairs × the
-  //  4 powers) · 24 actions (Skip, Reverse, +2 twice per colour) · 12 wilds
-  const PAIRS = [];
-  for (let a = 0; a < COLORS.length; a++) for (let b = a + 1; b < COLORS.length; b++) PAIRS.push([COLORS[a], COLORS[b]]);
-  const CARD_TOTAL = 100;
+  // ---------- Deck: 104 playing cards (+ the 8 Power Cards, which are the `power` field) ----------
+  //  per colour: classic 1–8 (two of them with the 🔄 flip icon), flex 1–8, classic Skip /
+  //  Reverse / Draw Two, flex Skip / Reverse / Draw Two  → 22 × 4 = 88
+  //  wilds: 6 Wild All Flip, 4 Flex Wild Target Draw 2, 4 Flex Wild All Draw, 2 Flex Wild Draw Four
+  const CARD_TOTAL = 104;
+  const FLIP_NUMBERS = [['3', '7'], ['2', '6'], ['4', '8'], ['1', '5']];   // flip icons, per colour
   function shuffle(arr, rnd = Math.random) {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
@@ -66,13 +69,22 @@
   }
   function createDeck(rnd = Math.random) {
     const out = [];
-    for (const c of COLORS) {
-      for (const n of NUMBERS) out.push({ c, v: n });
-      for (const a of ACTIONS) { out.push({ c, v: a }); out.push({ c, v: a }); }
-    }
-    // chameleon numbers run 1–9 round the pairs so every number shows up 2–3 times
-    PAIRS.forEach(([c, c2], p) => POWERS.forEach((pw, k) => out.push({ c, c2, v: String(((p * 4 + k) % 9) + 1), pw })));
-    for (const w of WILDS) for (let i = 0; i < 4; i++) out.push({ c: WILD_COLOR, v: w });
+    COLORS.forEach((c, ci) => {
+      const others = COLORS.filter(x => x !== c);
+      for (const n of NUMBERS) {
+        const card = { c, v: n };
+        if (FLIP_NUMBERS[ci].includes(n)) card.flip = true;
+        out.push(card);
+      }
+      // the flex colours go round the three other colours
+      NUMBERS.forEach((n, k) => out.push({ c, c2: others[k % 3], v: n, flex: true }));
+      for (const a of ACTIONS) out.push({ c, v: a });
+      ACTIONS.forEach((a, k) => out.push({ c, c2: others[k], v: a, flex: true }));
+    });
+    for (let i = 0; i < 6; i++) out.push({ c: WILD_COLOR, v: 'wildFlip' });
+    for (let i = 0; i < 4; i++) out.push({ c: WILD_COLOR, v: 'wildTarget2', flex: true });
+    for (let i = 0; i < 4; i++) out.push({ c: WILD_COLOR, v: 'wildAllDraw', flex: true });
+    for (let i = 0; i < 2; i++) out.push({ c: WILD_COLOR, v: 'wild4', flex: true });
     return shuffle(out.map((card, id) => ({ id, ...card })), rnd);
   }
 
@@ -97,37 +109,36 @@
   const currentId = state => state.players[state.currentPlayerIndex]?.id;
   const hasPower = (state, pid) => !!(state.power && state.power[pid]);
 
-  // Can this card go on the table right now?
+  // Can this card go down on its NORMAL side?
   function isPlayable(card, state) {
     if (!card) return false;
-    if (card.c === WILD_COLOR) return true;
-    return colorsOf(card).includes(state.topColor) || card.v === state.topValue;
+    if (isWild(card)) return true;
+    return card.c === state.topColor || card.v === state.topValue;
   }
-  // Which cards in this player's hand may be played (indexes)
+  // Can this card go down on its FLEX side? (needs a green Power Card)
+  //  flex wild: always · flex number/action: its flex colour matches, or its normal side would
+  //  (you may flex a card that already fits, just to get the flex effect)
+  function canFlex(card, state, pid) {
+    if (!isFlex(card) || !hasPower(state, pid)) return false;
+    if (isWild(card)) return true;
+    return card.c2 === state.topColor || isPlayable(card, state);
+  }
+  // Which cards in this player's hand may be played (indexes), on either side
   function legalPlays(state, pid) {
     if (state.status !== 'playing' || state.phase || currentId(state) !== pid) return [];
     const hand = state.hands[pid] || [];
+    const ok = c => isPlayable(c, state) || canFlex(c, state, pid);
     if (state.drawn) {
       if (state.drawn.pid !== pid) return [];
       const i = hand.findIndex(c => c.id === state.drawn.id);
-      return i >= 0 && isPlayable(hand[i], state) ? [i] : [];
+      return i >= 0 && ok(hand[i]) ? [i] : [];
     }
-    return hand.map((c, i) => (isPlayable(c, state) ? i : -1)).filter(i => i >= 0);
+    return hand.map((c, i) => (ok(c) ? i : -1)).filter(i => i >= 0);
   }
-  // A Wild +4 is only fair when you hold nothing of the colour in play
-  // (a chameleon card counts if either of its colours is that colour)
+  // A Wild Draw Four (normal side) is only fair when you hold no card of the colour in play —
+  // and any wild counts as a match too
   function hadColor(hand, color) {
-    return hand.some(c => c.c !== WILD_COLOR && colorsOf(c).includes(color));
-  }
-  // Which cards may ride along with a ✌️ Double power: any non-wild card showing the
-  // colour the chameleon card was turned into
-  function doubleOptions(hand, color) {
-    return hand.filter(c => c.c !== WILD_COLOR && colorsOf(c).includes(color));
-  }
-  // The colour a chameleon card becomes if the player didn't say: the one that matches
-  // the table, else its first colour
-  function defaultChamColor(card, topColor) {
-    return card.c2 === topColor ? card.c2 : card.c;
+    return hand.some(c => isWild(c) || c.c === color);
   }
 
   // ---------- Drawing (the discard pile is reshuffled when the deck runs out) ----------
@@ -163,20 +174,31 @@
   function syncCounts(st) {
     st.players = st.players.map(p => ({ ...p, cardCount: (st.hands[p.id] || []).length }));
   }
-  // Someone is forced to take cards: hand + event + stats in one place.
-  // Being hit by a +2 / Wild +4 (2+ cards) recharges your Power token — a small comfort.
+  // Someone is forced to take cards: hand + event + stats in one place
   function forceDraw(st, pid, n, by, why) {
     const got = take(st, pid, n);
     emit(st, { t: 'draw', pid, n: got.length, why });
     stat(st, pid, 'taken', got.length);
     if (by && by !== pid) stat(st, by, 'dealt', got.length);
-    if ((why === 'draw2' || why === 'wild4') && got.length >= 2 && !hasPower(st, pid)) {
-      st.power = { ...(st.power || {}), [pid]: true };
-      emit(st, { t: 'charge', pid, why });
-      stat(st, pid, 'recharges');
-      addLog(st, 'log.recharge', { name: nameOf(st, pid) });
-    }
     return got.length;
+  }
+
+  // ---------- ⚡ Power Cards ----------
+  // switch some players' cards over (green ↔ red)
+  function togglePower(st, pids, why, by) {
+    const pw = { ...(st.power || {}) };
+    for (const id of pids) pw[id] = !pw[id];
+    st.power = pw;
+    emit(st, { t: 'powerFlip', pids, why, by: by || null, now: pids.map(id => pw[id]) });
+  }
+  // every player's card red at the same time → everybody back to green
+  function checkAllRed(st) {
+    const ids = st.players.map(p => p.id);
+    if (ids.length && ids.every(id => !hasPower(st, id))) {
+      st.power = Object.fromEntries(ids.map(id => [id, true]));
+      emit(st, { t: 'powerReset' });
+      addLog(st, 'log.allRed', {});
+    }
   }
 
   // ---------- New round ----------
@@ -186,8 +208,9 @@
     let deck = createDeck(rnd);
     const hands = {};
     for (const p of players) hands[p.id] = deck.splice(0, HAND_SIZE);
-    // The first table card is a plain number card (others stay in the deck)
-    const at = deck.findIndex(c => !c.c2 && NUMBERS.includes(c.v));
+    // The first table card can't be an action or wild card: those are passed over until a
+    // number card turns up (they stay in the deck)
+    const at = deck.findIndex(c => NUMBERS.includes(c.v));
     const start = deck.splice(at, 1)[0];
     const st = {
       status: 'playing',
@@ -197,7 +220,7 @@
       discard: [start],
       topColor: start.c,
       topValue: start.v,
-      power: Object.fromEntries(players.map(p => [p.id, true])),   // everybody starts charged
+      power: Object.fromEntries(players.map(p => [p.id, true])),   // everybody starts green
       currentPlayerIndex: 0,
       direction: 1,
       phase: null,
@@ -252,8 +275,8 @@
   }
 
   // ---------- Applying a move ----------
-  // move.t: play {id|i, color?, power?, gift?:{id,to}, extra?} · draw · pass · accept ·
-  //         challenge · shout · catch · timeout {seq} · endVote · lastPlayer (system)
+  // move.t: play {id|i, flex?, color? (wilds), target? (flex Target Draw 2 / Wild Draw Four)} ·
+  //         draw · pass · accept · challenge · shout · catch · timeout {seq} · endVote · lastPlayer
   function apply(state, move, actor) {
     if (!state || state.status !== 'playing') return { error: 'notPlaying' };
     const st = clone(state);
@@ -262,6 +285,7 @@
     st.power = st.power || {};
     const err = run(st, move, actor);
     if (err) return { error: err };
+    if (st.status === 'playing') checkAllRed(st);
     syncCounts(st);
     return { state: st };
   }
@@ -284,150 +308,128 @@
         const card = hand[move.i];
         if (!card) return 'noCard';
         if (st.drawn && card.id !== st.drawn.id) return 'onlyDrawn';
-        if (!isPlayable(card, st)) return 'cantPlay';
-        const wild = card.c === WILD_COLOR;
-        const cham = isCham(card);
-        if (wild && !COLORS.includes(move.color)) return 'needColor';
-        // the colour the card becomes: wild → named colour, chameleon → one of its two
-        let color = card.c;
-        if (wild) color = move.color;
-        else if (cham) {
-          color = move.color == null ? defaultChamColor(card, st.topColor) : move.color;
-          if (!colorsOf(card).includes(color)) return 'badColor';
-        }
-        let handBefore = hand.filter((_, i) => i !== move.i);
-
-        // ---- check the power before changing anything ----
-        const usePower = !!move.power;
-        if (usePower) {
-          if (!cham) return 'noPowerCard';
+        const flex = !!move.flex;
+        if (flex) {
+          if (!isFlex(card)) return 'notFlex';
           if (!hasPower(st, me)) return 'noPower';
-          if (card.pw === 'gift') {
-            const g = move.gift || {};
-            const tIdx = indexOf(st, g.to);
-            if (g.to === me || tIdx < 0 || st.players[tIdx].disconnected) return 'badGift';
-            if (!handBefore.some(c => c.id === g.id)) return 'badGift';
-            if (handBefore.length < 2) return 'badGift';        // you must keep at least one card
-          }
-          if (card.pw === 'double') {
-            const x = handBefore.find(c => c.id === move.extra);
-            if (!x || !doubleOptions([x], color).length) return 'badDouble';
-          }
+          if (!canFlex(card, st, me)) return 'cantPlay';
+        } else if (!isPlayable(card, st)) return 'cantPlay';
+        const wild = isWild(card);
+        if (wild && !COLORS.includes(move.color)) return 'needColor';
+        // a targeted flex wild needs someone else (still in the game) to aim at
+        const targeted = flex && TARGETED[card.v];
+        let tIdx = -1;
+        if (targeted) {
+          tIdx = indexOf(st, move.target);
+          if (move.target === me || tIdx < 0 || st.players[tIdx].disconnected) return 'badTarget';
         }
 
         closeUno();
         const prevColor = st.topColor;
+        const handBefore = hand.filter((_, i) => i !== move.i);
         st.hands[me] = handBefore;
         st.discard = [...st.discard, card];
         st.drawn = null;
-        st.topColor = color;
+        // the NORMAL colour carries on, even when the flex side was used (wild: the named colour)
+        st.topColor = wild ? move.color : card.c;
         st.topValue = card.v;
-        emit(st, { t: 'play', pid: me, card: ci(card), color });
+        emit(st, { t: 'play', pid: me, card: ci(card), color: st.topColor, flex });
         stat(st, me, 'plays');
         if (wild) stat(st, me, 'wilds');
-        if (cham) stat(st, me, 'chams');
-        addLog(st, wild ? 'log.playWild' : cham ? 'log.playCham' : 'log.play',
-          { name: nameOf(st, me), c: card.c, c2: card.c2 || null, v: card.v, color });
-
-        const nxt = nextActive(st, myIdx);
-        const nxtId = st.players[nxt].id;
-        let goTo = nxt;
-
-        // ---- the chameleon card's power ----
-        if (usePower) {
-          st.power = { ...st.power, [me]: false };
-          stat(st, me, 'powers');
-          stat(st, me, 'pw_' + card.pw);
-          switch (card.pw) {
-            case 'rain': {        // ☔ everybody else takes one card
-              let n = 0;
-              for (const p of st.players) if (p.id !== me && !p.disconnected) n += forceDraw(st, p.id, 1, me, 'rain');
-              emit(st, { t: 'power', pw: 'rain', pid: me, n });
-              addLog(st, 'log.pwRain', { name: nameOf(st, me) });
-              break;
-            }
-            case 'again':         // 🔁 you take another turn straight away
-              emit(st, { t: 'power', pw: 'again', pid: me });
-              addLog(st, 'log.pwAgain', { name: nameOf(st, me) });
-              goTo = myIdx;
-              break;
-            case 'gift': {        // 🎁 one of your cards goes to a player you choose
-              const gi = handBefore.findIndex(c => c.id === move.gift.id);
-              const gc = handBefore[gi];
-              handBefore = handBefore.filter((_, i) => i !== gi);
-              st.hands[me] = handBefore;
-              st.hands[move.gift.to] = [...(st.hands[move.gift.to] || []), gc];
-              emit(st, { t: 'power', pw: 'gift', pid: me, to: move.gift.to, card: ci(gc) });
-              stat(st, me, 'dealt');
-              stat(st, move.gift.to, 'taken');
-              addLog(st, 'log.pwGift', { name: nameOf(st, me), target: nameOf(st, move.gift.to) });
-              // a gift can leave the receiver with more than one card — their window closes
-              if (st.uno?.pid === move.gift.to) st.uno = null;
-              break;
-            }
-            case 'double': {      // ✌️ a second card of the same colour goes down too
-              const xi = handBefore.findIndex(c => c.id === move.extra);
-              const xc = handBefore[xi];
-              handBefore = handBefore.filter((_, i) => i !== xi);
-              st.hands[me] = handBefore;
-              // it slides in under the chameleon card, which stays on top
-              st.discard = [...st.discard.slice(0, -1), xc, card];
-              emit(st, { t: 'power', pw: 'double', pid: me, card: ci(xc) });
-              addLog(st, 'log.pwDouble', { name: nameOf(st, me) });
-              break;
-            }
-          }
+        if (flex) {
+          stat(st, me, 'flexes');
+          // using the flex side turns my Power Card red
+          togglePower(st, [me], 'flex', me);
         }
+        addLog(st, wild ? 'log.playWild' : 'log.play', { name: nameOf(st, me), c: card.c, c2: card.c2 || null, v: card.v, color: st.topColor, flex });
 
         const left = handBefore.length;
         const won = left === 0;
+        const nxt = nextActive(st, myIdx);
+        const nxtId = st.players[nxt].id;
+        let goTo = nxt;
+        const others = () => st.players.filter(p => p.id !== me && !p.disconnected);
 
-        // ---- what the card does ----
+        // ---- what the card does (normal side, or flex side) ----
         switch (card.v) {
           case 'draw2':
-            forceDraw(st, nxtId, 2, me, 'draw2');
-            emit(st, { t: 'skip', pid: nxtId });
-            addLog(st, 'log.drawSkip', { name: nameOf(st, nxtId), n: 2 });
-            goTo = nextActive(st, nxt);
+            if (flex) {        // every other player draws 1; the next player still plays
+              for (const p of others()) forceDraw(st, p.id, 1, me, 'flexDraw');
+              emit(st, { t: 'flexEffect', v: 'draw2', pid: me });
+              addLog(st, 'log.flexDraw2', { name: nameOf(st, me) });
+            } else {
+              forceDraw(st, nxtId, 2, me, 'draw2');
+              emit(st, { t: 'skip', pid: nxtId });
+              addLog(st, 'log.drawSkip', { name: nameOf(st, nxtId), n: 2 });
+              goTo = nextActive(st, nxt);
+            }
             break;
           case 'skip':
-            emit(st, { t: 'skip', pid: nxtId });
-            stat(st, me, 'skips');
-            addLog(st, 'log.skip', { name: nameOf(st, nxtId) });
-            goTo = nextActive(st, nxt);
+            if (flex) {        // SKIP ALL: the turn comes back to me
+              emit(st, { t: 'skipAll', pid: me });
+              stat(st, me, 'skips', activeCount(st) - 1);
+              addLog(st, 'log.skipAll', { name: nameOf(st, me) });
+              goTo = myIdx;
+            } else {
+              emit(st, { t: 'skip', pid: nxtId });
+              stat(st, me, 'skips');
+              addLog(st, 'log.skip', { name: nameOf(st, nxtId) });
+              goTo = nextActive(st, nxt);
+            }
             break;
-          case 'reverse':
+          case 'reverse': {
             st.direction = -st.direction;
             emit(st, { t: 'reverse', dir: st.direction });
-            if (activeCount(st) === 2) {
-              emit(st, { t: 'skip', pid: nxtId });
-              addLog(st, 'log.skip', { name: nameOf(st, nxtId) });
+            const first = nextActive(st, myIdx);          // first player in the new direction
+            const firstId = st.players[first].id;
+            if (flex) {        // REVERSE then SKIP
+              emit(st, { t: 'skip', pid: firstId });
+              stat(st, me, 'skips');
+              addLog(st, 'log.reverseSkip', { name: nameOf(st, firstId) });
+              goTo = nextActive(st, first);
+            } else if (activeCount(st) === 2) {   // with two players a Reverse works as a Skip
+              emit(st, { t: 'skip', pid: firstId });
+              addLog(st, 'log.skip', { name: nameOf(st, firstId) });
               goTo = myIdx;
             } else {
               addLog(st, 'log.reverse', {});
-              goTo = nextActive(st, myIdx);
+              goTo = first;
             }
             break;
-          case 'wildCham': {
-            // 🦎 your token recharges, everybody else's switches off
-            const drained = st.players.filter(p => p.id !== me && hasPower(st, p.id)).map(p => p.id);
-            const pw = {};
-            for (const p of st.players) pw[p.id] = p.id === me;
-            st.power = pw;
-            emit(st, { t: 'charge', pid: me, why: 'wildCham', drained });
-            stat(st, me, 'drains', drained.length);
-            addLog(st, 'log.wildCham', { name: nameOf(st, me), n: drained.length });
+          }
+          case 'wildFlip': {   // everybody's Power Card switches over
+            togglePower(st, st.players.map(p => p.id), 'wildFlip', me);
+            stat(st, me, 'allFlips');
+            addLog(st, 'log.wildFlip', { name: nameOf(st, me), color: st.topColor });
             break;
           }
+          case 'wildAllDraw':
+            if (flex) {        // every other player draws 2; the next player still plays
+              for (const p of others()) forceDraw(st, p.id, 2, me, 'flexDraw');
+              emit(st, { t: 'flexEffect', v: 'wildAllDraw', pid: me });
+              addLog(st, 'log.flexAllDraw', { name: nameOf(st, me) });
+            }
+            break;
+          case 'wildTarget2':
           case 'wild4': {
-            if (won) {
-              // last card: no challenge, the next player simply takes the cards
+            if (flex) {        // the chosen player draws; play goes on with the next player
+              const n = TARGETED[card.v];
+              const tid = st.players[tIdx].id;
+              forceDraw(st, tid, n, me, 'target');
+              emit(st, { t: 'target', pid: me, to: tid, n });
+              stat(st, me, 'targets');
+              addLog(st, 'log.target', { name: nameOf(st, me), target: nameOf(st, tid), n });
+              break;
+            }
+            if (card.v === 'wildTarget2') break;    // normal side: a plain wild
+            // Wild Draw Four, normal side
+            if (won) {         // last card: no challenge, the next player simply takes the cards
               forceDraw(st, nxtId, 4, me, 'wild4');
               break;
             }
             st.phase = {
               k: 'challenge', kind: 'wild4', by: me, target: nxtId,
-              // was it fair? (any card of the colour that was in play)
+              // was it fair? (any card of the colour that was in play — wilds count too)
               guilty: hadColor(handBefore, prevColor),
               prevColor, handAtPlay: handBefore.map(c => ci(c))
             };
@@ -437,6 +439,12 @@
             setUno(st, me, left);
             return null;
           }
+          default:
+            // a number card with the 🔄 flip icon: my Power Card MUST switch over
+            if (card.flip) {
+              togglePower(st, [me], 'flipCard', me);
+              addLog(st, 'log.flipCard', { name: nameOf(st, me) });
+            }
         }
         if (won) { endRound(st, me); return null; }
         setUno(st, me, left);
@@ -457,7 +465,7 @@
         }
         emit(st, { t: 'draw', pid: me, n: 1, why: 'self' });
         stat(st, me, 'drew');
-        if (isPlayable(got[0], st)) {
+        if (isPlayable(got[0], st) || canFlex(got[0], st, me)) {
           st.drawn = { pid: me, id: got[0].id };   // may play it now, or pass
         } else {
           addLog(st, 'log.drewPass', { name: nameOf(st, me) });
@@ -487,7 +495,7 @@
           addLog(st, 'log.accept', { name: tName, n });
           st.currentPlayerIndex = nextActive(st, tIdx);
         } else if (ph.guilty) {
-          // Caught: the player who bluffed takes the 4 cards, the target keeps their turn
+          // Caught: the player who played it draws 4, the challenger draws none and plays
           const n = forceDraw(st, ph.by, 4, me, 'penalty');
           emit(st, { t: 'challengeResult', ok: true, by: ph.by, target: me, hand: ph.handAtPlay, prevColor: ph.prevColor });
           stat(st, me, 'challengesWon');
@@ -496,9 +504,8 @@
           if (st.uno?.pid === ph.by) st.uno = null;
           st.currentPlayerIndex = tIdx;
         } else {
-          // Fair play: the challenger takes the 4 cards plus 2 more and loses the turn
-          let n = forceDraw(st, me, 4, ph.by, 'wild4');
-          n += forceDraw(st, me, 2, ph.by, 'penalty');
+          // Fair play: the challenger draws 6 instead of 4 and loses their turn
+          const n = forceDraw(st, me, 6, ph.by, 'wild4');
           emit(st, { t: 'challengeResult', ok: false, by: ph.by, target: me, hand: ph.handAtPlay, prevColor: ph.prevColor });
           emit(st, { t: 'skip', pid: me });
           stat(st, ph.by, 'challengesWon');
@@ -568,7 +575,7 @@
   }
 
   // ---------- Someone joins / leaves in the middle of a round ----------
-  // A late joiner gets 7 cards, a charged token, and sits last in the order
+  // A late joiner gets 7 cards, a green Power Card, and sits last in the order
   function addPlayer(state, player) {
     const st = clone(state);
     st.ev = { n: (state.ev?.n || 0) + 1, list: [] };
@@ -610,6 +617,7 @@
     if (ph && (ph.target === pid || ph.by === pid)) st.phase = null;
     if (st.drawn?.pid === pid) st.drawn = null;
     if (st.uno?.pid === pid) st.uno = null;
+    checkAllRed(st);
     syncCounts(st);
     const alive = st.players.filter(p => !p.disconnected);
     if (alive.length === 1) endRound(st, alive[0].id, 'lastPlayer');
@@ -622,28 +630,19 @@
     else if (st.uno?.pid === pid) st.uno = null;
   }
 
-  // The colour you hold most of — bots and timeouts use it. A chameleon card counts half
-  // for each of its colours; action cards count a little more (you want to play them).
-  function colorWeights(hand) {
-    const n = Object.fromEntries(COLORS.map(c => [c, 0]));
-    for (const c of hand) {
-      if (c.c === WILD_COLOR) continue;
-      const w = NUMBERS.includes(c.v) ? 1 : 1.3;
-      for (const col of colorsOf(c)) n[col] += c.c2 ? w * 0.6 : w;
-    }
-    return n;
-  }
+  // The colour you hold most of — bots and timeouts use it (action cards count a bit more)
   function bestColor(hand, among = COLORS) {
-    const n = colorWeights(hand);
+    const n = Object.fromEntries(COLORS.map(c => [c, 0]));
+    for (const c of hand) if (!isWild(c)) n[c.c] += NUMBERS.includes(c.v) ? 1 : 1.3;
     return among.reduce((a, b) => (n[b] > n[a] ? b : a), among[Math.floor(Math.random() * among.length)]);
   }
 
   // ============================================================
   // BOTS — choose a move for a bot (no peeking: a bot only uses its own hand, card counts,
-  // the table and everybody's tokens, which are on show)
+  // the table and everybody's Power Cards, which are on show)
   // ============================================================
-  // persona: attacker · trickster · saver · bluffer · balanced
-  // level:   { challenge: how well it reads a bluff, fair: plays Wild +4 only when fair,
+  // persona: attacker · flexer · saver · bluffer · balanced
+  // level:   { challenge: how well it reads a bluff, fair: plays Wild Draw Four only when fair,
   //            random: chance of a careless play, rnd }
   function botMove(state, pid, persona = 'balanced', level = {}) {
     const st = state;
@@ -653,9 +652,9 @@
 
     if (ph?.k === 'challenge') {
       if (ph.target !== pid) return null;
-      // Guess: the more cards the player had, the likelier they held the colour
+      // Guess: the more cards the player had, the likelier they held the colour (or a wild)
       const byHand = (st.hands[ph.by] || []).length;
-      let p = Math.min(0.85, 0.12 + byHand * 0.07);
+      let p = Math.min(0.85, 0.15 + byHand * 0.08);
       if (persona === 'bluffer') p += 0.15;
       if (persona === 'saver') p -= 0.1;
       const sharp = level.challenge ?? 0.5;                   // 0 = coin flip, 1 = very good guesser
@@ -669,100 +668,82 @@
     if (!legal.length) return st.drawn ? { t: 'pass' } : { t: 'draw' };
     const charged = hasPower(st, pid);
     const rivals = st.players.filter(p => p.id !== pid && !p.disconnected);
-    const threat = Math.min(...rivals.map(p => p.cardCount));
+    const leaderRival = rivals.slice().sort((a, b) => a.cardCount - b.cardCount)[0];
+    const threat = leaderRival ? leaderRival.cardCount : 99;
     const nxt = st.players[nextActive(st, indexOf(st, pid))];
     const nextIsClose = nxt && nxt.cardCount <= 2;
-    const weights = colorWeights(hand);
+    const colorCount = c => hand.filter(h => h.c === c).length;
 
-    // easy bots sometimes just play any card they can (and never bother with powers)
-    if (level.random && rnd() < level.random) {
-      const i = legal[Math.floor(rnd() * legal.length)];
-      return finish({ t: 'play', i }, false);
-    }
+    // Would this card be worth playing on its flex side? (it costs the Power Card)
+    const flexWorth = c => {
+      if (!canFlex(c, st, pid)) return -1;
+      if (!isPlayable(c, st)) return 10;                      // the only way to play it
+      let w = 0;
+      if (c.v === 'skip') w = 8 + (activeCount(st) - 2) * 2;  // skip everyone, go again
+      if (c.v === 'reverse') w = 4;
+      if (c.v === 'draw2') w = rivals.length >= 3 ? 5 : 1;
+      if (c.v === 'wildAllDraw') w = 4 + rivals.length * 2;
+      if (c.v === 'wildTarget2') w = threat <= 3 ? 9 : 4;
+      if (c.v === 'wild4') w = threat <= 3 ? 14 : 8;
+      if (NUMBERS.includes(c.v)) w = -2;                      // no effect: keep the power
+      if (persona === 'flexer') w += 5;
+      if (persona === 'saver' && hand.length > 4 && threat > 3) w -= 8;
+      return w;
+    };
 
-    const score = i => {
+    const plan = i => {
       const c = hand[i];
+      const fw = flexWorth(c);
+      const flex = fw > 0 && (isPlayable(c, st) ? rnd() < 0.85 : true);
       let s = 0;
-      const wild = c.c === WILD_COLOR;
-      if (!wild && !c.c2 && NUMBERS.includes(c.v)) s += 10 + Number(c.v) * 0.3;   // shed high numbers first
-      if (!wild) s += Math.max(...colorsOf(c).map(col => weights[col])) * 1.5;    // stay in a colour you are long in
-      if (c.c2) {
-        s += 9;                                                                     // flexible and worth 20 points
-        if (charged) s += persona === 'trickster' ? 12 : 6;                         // …and it carries a power
-      }
-      if (['draw2', 'skip', 'wild4'].includes(c.v)) s += nextIsClose ? 14 : 6;
+      const wild = isWild(c);
+      if (!wild && NUMBERS.includes(c.v)) s += 10 + Number(c.v) * 0.3;   // shed high numbers first
+      if (!wild) s += colorCount(c.c) * 1.5;                              // keep to a colour you are long in
+      if (['draw2', 'skip'].includes(c.v)) s += nextIsClose ? 14 : 6;
       if (c.v === 'reverse') s += 7;
       if (wild) {
-        s -= 8;                                                                     // keep wilds for later
-        if (hand.length <= 2) s += 20;                                              // …unless it wins soon
+        s -= 8;                                                           // keep wilds for later
+        if (hand.length <= 2) s += 20;                                    // …unless it wins soon
       }
-      if (c.v === 'wildCham') {
-        // worth more when you are out of power, or rivals are charged up
-        const charged2 = rivals.filter(p => hasPower(st, p.id)).length;
-        s += (charged ? 0 : 8) + charged2 * 2;
+      if (c.flip) s += charged ? -3 : 6;                                  // a 🔄 card turns a red Power Card green
+      if (c.v === 'wildFlip') {
+        const reds = rivals.filter(p => !hasPower(st, p.id)).length;
+        s += (charged ? -4 : 8) + (rivals.length - reds * 2);             // good when I'm red and they're green
       }
-      // Wild +4 is only fair with nothing of the colour in play
-      if (c.v === 'wild4' && hadColor(hand.filter((_, k) => k !== i), st.topColor)) {
+      if (flex) s += fw;
+      // Wild Draw Four (normal side) is only fair with nothing of the colour (or a wild) in hand
+      if (c.v === 'wild4' && !flex && hadColor(hand.filter((_, k) => k !== i), st.topColor)) {
         if (level.fair) s -= 100;
         else s -= persona === 'bluffer' ? -2 : 6;
       }
       if (persona === 'attacker' && !NUMBERS.includes(c.v)) s += 6;
       if (persona === 'saver' && wild) s -= 12;
       if (persona === 'bluffer' && c.v === 'wild4') s += 6;
-      return s + rnd() * 3;
+      return { s: s + rnd() * 3, flex };
     };
-    const pick = legal.reduce((a, b) => (score(b) > score(a) ? b : a), legal[0]);
-    return finish({ t: 'play', i: pick }, true);
 
-    // colour + power choices for the chosen card
-    function finish(move, smart) {
-      const card = hand[move.i];
-      const rest = hand.filter((_, k) => k !== move.i);
-      if (card.c === WILD_COLOR) { move.color = bestColor(rest); return move; }
-      if (!card.c2) return move;
-      move.color = bestColor(rest, [card.c, card.c2]);
-      if (!smart || !charged) return move;
-      // Should the bot spend its token on this card's power?
-      let use = false;
-      switch (card.pw) {
-        case 'rain':
-          use = threat <= 3 || persona === 'attacker' || rnd() < 0.4;
-          break;
-        case 'again':
-          // only worth it with another card that fits after this one
-          use = rest.some(c => c.c === WILD_COLOR || colorsOf(c).includes(move.color) || c.v === card.v);
-          break;
-        case 'gift': {
-          if (rest.length < 2) break;
-          // hand the most awkward plain card (not a wild, not a flexible chameleon card) to the
-          // rival closest to winning
-          const plain = rest.filter(c => c.c !== WILD_COLOR && !c.c2);
-          const g = (plain.length ? plain : rest.filter(c => c.c !== WILD_COLOR)).sort((a, b) => cardPoints(b) - cardPoints(a))[0];
-          const to = rivals.slice().sort((a, b) => a.cardCount - b.cardCount)[0];
-          if (g && to) { use = true; move.gift = { id: g.id, to: to.id }; }
-          break;
-        }
-        case 'double': {
-          const opts = doubleOptions(rest, move.color).sort((a, b) => cardPoints(b) - cardPoints(a));
-          // careful: a dropped Skip/+2 doesn't do anything, so prefer numbers
-          const x = opts.find(c => NUMBERS.includes(c.v)) || opts[0];
-          if (x) { use = true; move.extra = x.id; }
-          break;
-        }
-      }
-      // a saver keeps its token until the end is near
-      if (persona === 'saver' && hand.length > 4 && threat > 3) use = false;
-      if (use) move.power = true;
-      return move;
+    let pick, plan0;
+    if (level.random && rnd() < level.random) {
+      // easy bots sometimes just play any card they can
+      pick = legal[Math.floor(rnd() * legal.length)];
+      plan0 = { flex: !isPlayable(hand[pick], st) };
+    } else {
+      let best = -Infinity;
+      for (const i of legal) { const p = plan(i); if (p.s > best) { best = p.s; pick = i; plan0 = p; } }
     }
+    const card = hand[pick];
+    const move = { t: 'play', i: pick };
+    if (plan0.flex) move.flex = true;
+    if (isWild(card)) move.color = bestColor(hand.filter((_, k) => k !== pick));
+    if (move.flex && TARGETED[card.v]) move.target = leaderRival?.id;
+    if (move.flex && TARGETED[card.v] && !move.target) delete move.flex;
+    return move;
   }
 
   const Engine = {
-    COLORS, NUMBERS, ACTIONS, WILDS, POWERS, POINTS, CHAM_POINTS, WILD_COLOR, HAND_SIZE, MATCH_TARGET,
-    GAME_KEYS, CARD_TOTAL, PAIRS,
-    createDeck, shuffle, newRound, apply, legalPlays, addPlayer, removePlayer, isPlayable, isWildValue,
-    isCham, colorsOf, doubleOptions, defaultChamColor, hasPower,
-    nextActive, cardPoints, bestColor, botMove, leader, hadColor
+    COLORS, NUMBERS, ACTIONS, WILDS, WILD_COLOR, HAND_SIZE, MAX_PLAYERS, MATCH_TARGET, GAME_KEYS, CARD_TOTAL, TARGETED,
+    createDeck, shuffle, newRound, apply, legalPlays, addPlayer, removePlayer, isPlayable, canFlex, isWildValue,
+    isWild, isFlex, hasPower, nextActive, cardPoints, bestColor, botMove, leader, hadColor
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
   else root.Engine = Engine;

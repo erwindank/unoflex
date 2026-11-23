@@ -1,153 +1,146 @@
 // ============================================================
 // Rules check for engine.js — run with:  node test-engine.js [games]
-// Hand-made situations for each card and power, then thousands of full bot games that
-// check the game always ends, no card is lost or copied, and every state can be saved
-// to Firestore.
+// Hand-made situations for each card (normal and flex side) and each Power Card rule, then
+// thousands of full bot games that check the game always ends, no card is lost or copied,
+// and every state can be saved to Firestore.
 // ============================================================
 const E = require('./engine.js');
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('  ✗ ' + msg); } };
 const P = n => Array.from({ length: n }, (_, i) => ({ id: 'p' + i, name: 'P' + i }));
 
-// Build a round, then set hands / table by hand.
-// A card is written as ['red','5'] (plain), ['red','5','blue','rain'] (chameleon) or ['wild','wild4'].
+// Build a round, then set hands / table by hand. A card is written as
+//   ['red','5'] classic · ['red','5','flip'] with the flip icon · ['red','5','blue'] flex (flex colour blue)
+//   ['wild','wild4'] wild (flex wilds get flex:true automatically)
 function setup(n, hands, top, opts = {}) {
   const st = E.newRound(P(n));
   let id = 1000;
-  const mk = a => (a[2] ? { id: id++, c: a[0], v: a[1], c2: a[2], pw: a[3] } : { id: id++, c: a[0], v: a[1] });
-  const filler = () => [['blue', '9'], ['blue', '8']];
+  const mk = a => {
+    const c = { id: id++, c: a[0], v: a[1] };
+    if (a[2] === 'flip') c.flip = true;
+    else if (a[2]) { c.c2 = a[2]; c.flex = true; }
+    if (a[0] === 'wild' && a[1] !== 'wildFlip') c.flex = true;
+    return c;
+  };
+  const filler = () => [['blue', '8'], ['blue', '7']];
   st.hands = {};
   st.players.forEach((p, i) => { st.hands[p.id] = (hands[i] || filler()).map(mk); });
   st.players = st.players.map(p => ({ ...p, cardCount: st.hands[p.id].length }));
   st.discard = [mk(top)];
   st.topColor = st.discard[0].c; st.topValue = st.discard[0].v;
-  st.drawPile = Array.from({ length: 40 }, (_, i) => mk(['green', String(1 + i % 9)]));
+  st.drawPile = Array.from({ length: 40 }, (_, i) => mk(['green', String(1 + i % 8)]));
   if (opts.power) st.power = { ...st.power, ...opts.power };
   return st;
 }
 const R = ['red', '5'];
-const idOf = (st, pid, k) => st.hands[pid][k].id;
 
 console.log('Hand-made situations');
-{ // +2: next draws 2, is skipped, and their power recharges
-  const st = setup(3, [[['red', 'draw2'], R]], R, { power: { p1: false } });
-  const r = E.apply(st, { t: 'play', i: 0 }, 'p0');
-  ok(r.state && r.state.hands.p1.length === 4 && r.state.currentPlayerIndex === 2, '+2 draws two and skips');
-  ok(r.state.power.p1 === true, '+2 recharges the victim\'s token');
-}
-{ // Skip and Reverse
-  let st = setup(3, [[['red', 'skip'], R]], R);
+{ // Draw Two: next draws 2 and loses the turn · flex side: everyone else draws 1, next still plays
+  let st = setup(4, [[['red', 'draw2', 'blue'], R]], R);
   let r = E.apply(st, { t: 'play', i: 0 }, 'p0');
-  ok(r.state.currentPlayerIndex === 2, 'skip');
+  ok(r.state.hands.p1.length === 4 && r.state.currentPlayerIndex === 2, 'draw two');
+  r = E.apply(st, { t: 'play', i: 0, flex: true }, 'p0');
+  ok(r.state.hands.p1.length === 3 && r.state.hands.p3.length === 3 && r.state.currentPlayerIndex === 1, 'flex draw two: all +1, next plays');
+  ok(r.state.power.p0 === false, 'flex side turns the Power Card red');
+}
+{ // Skip · flex: skip all
+  let st = setup(4, [[['red', 'skip', 'green'], R]], R);
+  ok(E.apply(st, { t: 'play', i: 0 }, 'p0').state.currentPlayerIndex === 2, 'skip');
+  ok(E.apply(st, { t: 'play', i: 0, flex: true }, 'p0').state.currentPlayerIndex === 0, 'flex skip = skip all');
+}
+{ // Reverse · flex: reverse then skip · two players
+  let st = setup(4, [[['red', 'reverse', 'green'], R]], R);
+  let r = E.apply(st, { t: 'play', i: 0 }, 'p0');
+  ok(r.state.currentPlayerIndex === 3 && r.state.direction === -1, 'reverse');
+  r = E.apply(st, { t: 'play', i: 0, flex: true }, 'p0');
+  ok(r.state.currentPlayerIndex === 2 && r.state.direction === -1, 'flex reverse: reverse then skip');
   st = setup(2, [[['red', 'reverse'], R]], R);
-  r = E.apply(st, { t: 'play', i: 0 }, 'p0');
-  ok(r.state.currentPlayerIndex === 0 && r.state.direction === -1, 'reverse with 2 = skip');
-  st = setup(4, [[['red', 'reverse'], R]], R);
-  r = E.apply(st, { t: 'play', i: 0 }, 'p0');
-  ok(r.state.currentPlayerIndex === 3, 'reverse with 4 goes the other way');
+  ok(E.apply(st, { t: 'play', i: 0 }, 'p0').state.currentPlayerIndex === 0, 'reverse with 2 = skip');
 }
-{ // Chameleon card: plays on either colour, and you choose the colour it becomes
-  const st = setup(3, [[['blue', '7', 'red', 'rain'], R]], ['red', '2']);
-  ok(E.isPlayable(st.hands.p0[0], st), 'chameleon plays on its second colour');
-  let r = E.apply(st, { t: 'play', i: 0, color: 'blue' }, 'p0');
-  ok(r.state.topColor === 'blue' && r.state.topValue === '7', 'chameleon turned blue');
-  r = E.apply(st, { t: 'play', i: 0 }, 'p0');
-  ok(r.state.topColor === 'red', 'no colour given → the matching one');
-  ok(E.apply(st, { t: 'play', i: 0, color: 'green' }, 'p0').error === 'badColor', 'only its own two colours');
-  const st2 = setup(3, [[['blue', '2', 'yellow', 'rain'], R]], ['red', '2']);
-  ok(E.isPlayable(st2.hands.p0[0], st2), 'chameleon also matches by number');
-  ok(r.state.power.p0 === true, 'no power used unless asked');
+{ // Flex number card: flex colour matches only with a green Power Card; the NORMAL colour carries on
+  const st = setup(3, [[['yellow', '4', 'red'], R]], ['red', '2']);
+  ok(E.apply(st, { t: 'play', i: 0 }, 'p0').error === 'cantPlay', 'normal side does not match');
+  const r = E.apply(st, { t: 'play', i: 0, flex: true }, 'p0');
+  ok(r.state.topColor === 'yellow' && r.state.power.p0 === false, 'flex side played, yellow carries on, power red');
+  const st2 = setup(3, [[['yellow', '4', 'red'], R]], ['red', '2'], { power: { p0: false } });
+  ok(E.apply(st2, { t: 'play', i: 0, flex: true }, 'p0').error === 'noPower', 'red Power Card: no flex');
+  ok(E.legalPlays(st2, 'p0').length === 1, 'and it is not a legal card then');
 }
-{ // ☔ Rain: everyone else takes one; the token is spent
-  const st = setup(4, [[['red', '7', 'blue', 'rain'], R, R]], R);
-  const r = E.apply(st, { t: 'play', i: 0, color: 'red', power: true }, 'p0');
-  ok(r.state.hands.p1.length === 3 && r.state.hands.p2.length === 3 && r.state.hands.p3.length === 3, 'rain: +1 each');
-  ok(r.state.power.p0 === false && r.state.currentPlayerIndex === 1, 'token spent, turn moves on');
-  ok(E.apply(r.state, { t: 'play', i: 0, power: true }, 'p1').error, 'p1 cannot use a power with a plain card');
+{ // Flip icon: your own Power Card switches over (red → green and green → red)
+  let st = setup(3, [[['red', '6', 'flip'], R]], R, { power: { p0: false } });
+  ok(E.apply(st, { t: 'play', i: 0 }, 'p0').state.power.p0 === true, 'flip card: red → green');
+  st = setup(3, [[['red', '6', 'flip'], R]], R);
+  ok(E.apply(st, { t: 'play', i: 0 }, 'p0').state.power.p0 === false, 'flip card: green → red');
 }
-{ // A spent token can't be used
-  const st = setup(3, [[['red', '7', 'blue', 'rain'], R]], R, { power: { p0: false } });
-  ok(E.apply(st, { t: 'play', i: 0, power: true }, 'p0').error === 'noPower', 'spent token refused');
-}
-{ // 🔁 Again: same player goes again
-  const st = setup(3, [[['red', '7', 'blue', 'again'], R, R]], R);
-  const r = E.apply(st, { t: 'play', i: 0, power: true }, 'p0');
-  ok(r.state.currentPlayerIndex === 0 && r.state.power.p0 === false, 'again keeps the turn');
-}
-{ // 🎁 Gift: a card moves to the chosen player; you must keep at least one
-  const st = setup(3, [[['red', '7', 'blue', 'gift'], ['yellow', 'skip'], R]], R);
-  const g = idOf(st, 'p0', 1);
-  const r = E.apply(st, { t: 'play', i: 0, power: true, gift: { id: g, to: 'p2' } }, 'p0');
-  ok(r.state.hands.p0.length === 1 && r.state.hands.p2.length === 3 && r.state.hands.p2.some(c => c.id === g), 'gift moved');
-  ok(r.state.players.find(p => p.id === 'p2').cardCount === 3, 'cardCount follows the gift');
-  ok(E.apply(st, { t: 'play', i: 0, power: true, gift: { id: g, to: 'p0' } }, 'p0').error === 'badGift', 'no gift to yourself');
-  const st2 = setup(3, [[['red', '7', 'blue', 'gift'], R]], R);
-  ok(E.apply(st2, { t: 'play', i: 0, power: true, gift: { id: idOf(st2, 'p0', 1), to: 'p1' } }, 'p0').error === 'badGift', 'cannot gift your last card');
-}
-{ // ✌️ Double: a second card of the chosen colour goes down; it can even win the round
-  const st = setup(3, [[['red', '7', 'blue', 'double'], ['blue', '3'], ['green', '1']]], R);
-  const x = idOf(st, 'p0', 1);
-  let r = E.apply(st, { t: 'play', i: 0, color: 'blue', power: true, extra: x }, 'p0');
-  ok(r.state.hands.p0.length === 1 && r.state.topColor === 'blue' && r.state.topValue === '7', 'double dropped the blue 3');
-  ok(r.state.discard[r.state.discard.length - 2].id === x, 'extra card sits under the top card');
-  ok(E.apply(st, { t: 'play', i: 0, color: 'red', power: true, extra: x }, 'p0').error === 'badDouble', 'extra must match the chosen colour');
-  const st2 = setup(3, [[['red', '7', 'blue', 'double'], ['blue', '3']]], R);
-  r = E.apply(st2, { t: 'play', i: 0, color: 'blue', power: true, extra: idOf(st2, 'p0', 1) }, 'p0');
-  ok(r.state.status === 'ended' && r.state.winner === 'p0', 'double can finish the round');
-}
-{ // 🦎 Wild Chameleon: your token recharges, everybody else's switches off
-  const st = setup(3, [[['wild', 'wildCham'], R]], R, { power: { p0: false } });
+{ // Wild All Flip: everybody's card switches over
+  const st = setup(3, [[['wild', 'wildFlip'], R]], R, { power: { p1: false } });
   ok(E.apply(st, { t: 'play', i: 0 }, 'p0').error === 'needColor', 'wild needs a colour');
-  const r = E.apply(st, { t: 'play', i: 0, color: 'green' }, 'p0');
-  ok(r.state.power.p0 === true && r.state.power.p1 === false && r.state.power.p2 === false && r.state.topColor === 'green', 'wild chameleon');
+  const r = E.apply(st, { t: 'play', i: 0, color: 'blue' }, 'p0');
+  ok(r.state.power.p0 === false && r.state.power.p1 === true && r.state.power.p2 === false && r.state.topColor === 'blue', 'all flip');
 }
-{ // Wild +4 played fairly; challenge fails → target takes 6 and loses the turn
+{ // Everyone red at once → everyone green
+  const st = setup(3, [[['yellow', '4', 'red'], R]], ['red', '2'], { power: { p1: false, p2: false } });
+  const r = E.apply(st, { t: 'play', i: 0, flex: true }, 'p0');
+  ok(r.state.power.p0 && r.state.power.p1 && r.state.power.p2, 'all red → all green');
+}
+{ // Flex wilds: normal side is a plain wild; flex sides draw
+  let st = setup(4, [[['wild', 'wildAllDraw'], R]], R);
+  let r = E.apply(st, { t: 'play', i: 0, color: 'green' }, 'p0');
+  ok(r.state.hands.p1.length === 2 && r.state.currentPlayerIndex === 1, 'all draw, normal side = wild');
+  r = E.apply(st, { t: 'play', i: 0, color: 'green', flex: true }, 'p0');
+  ok(r.state.hands.p1.length === 4 && r.state.hands.p3.length === 4 && r.state.currentPlayerIndex === 1, 'all draw flex: others +2, next plays');
+  st = setup(4, [[['wild', 'wildTarget2'], R]], R);
+  ok(E.apply(st, { t: 'play', i: 0, color: 'green', flex: true }, 'p0').error === 'badTarget', 'target needed');
+  r = E.apply(st, { t: 'play', i: 0, color: 'green', flex: true, target: 'p2' }, 'p0');
+  ok(r.state.hands.p2.length === 4 && r.state.currentPlayerIndex === 1, 'target draw 2');
+  st = setup(4, [[['wild', 'wild4'], R]], R);
+  r = E.apply(st, { t: 'play', i: 0, color: 'green', flex: true, target: 'p1' }, 'p0');
+  ok(r.state.hands.p1.length === 6 && r.state.currentPlayerIndex === 1 && !r.state.phase, 'flex wild draw four: target +4, no challenge, next still plays');
+}
+{ // Wild Draw Four normal side: fair, challenged → challenger draws 6 and loses the turn
   const st = setup(3, [[['wild', 'wild4'], ['blue', '1']], [['blue', '3']], [['green', '1']]], R);
   let r = E.apply(st, { t: 'play', i: 0, color: 'blue' }, 'p0');
-  ok(r.state.phase?.k === 'challenge' && r.state.phase.guilty === false, 'wild +4 opens a fair challenge');
+  ok(r.state.phase?.k === 'challenge' && r.state.phase.guilty === false, 'fair wild draw four');
   ok(E.apply(r.state, { t: 'draw' }, 'p1').error, 'nobody plays while the challenge is open');
   r = E.apply(r.state, { t: 'challenge' }, 'p1');
   ok(r.state.hands.p1.length === 7 && r.state.currentPlayerIndex === 2, 'lost challenge: +6, skipped');
 }
-{ // Wild +4 bluff caught (a chameleon card with the colour counts) → bluffer takes 4
-  const st = setup(3, [[['wild', 'wild4'], ['blue', '1', 'red', 'rain']], [['red', '3']], [['red', '1']]], R);
+{ // …bluff: holding a wild counts as having the colour → bluffer draws 4, challenger draws none and plays
+  const st = setup(3, [[['wild', 'wild4'], ['wild', 'wildFlip']], [['red', '3']], [['red', '1']]], R);
   let r = E.apply(st, { t: 'play', i: 0, color: 'blue' }, 'p0');
-  ok(r.state.phase.guilty === true, 'bluff detected through the chameleon card');
+  ok(r.state.phase.guilty === true, 'a wild in hand makes it unfair');
   r = E.apply(r.state, { t: 'challenge' }, 'p1');
-  ok(r.state.hands.p0.length === 5 && r.state.currentPlayerIndex === 1, 'won challenge: bluffer +4, target plays');
+  ok(r.state.hands.p0.length === 5 && r.state.hands.p1.length === 1 && r.state.currentPlayerIndex === 1, 'caught: bluffer +4');
+  ok(r.state.topColor === 'blue', 'the colour named stays');
 }
-{ // Wild +4 accepted → +4, skipped, token recharged
-  const st = setup(3, [[['wild', 'wild4'], ['blue', '1']]], R, { power: { p1: false } });
+{ // …accepted → +4 and lose the turn
+  const st = setup(3, [[['wild', 'wild4'], ['blue', '1']]], R);
   let r = E.apply(st, { t: 'play', i: 0, color: 'blue' }, 'p0');
   r = E.apply(r.state, { t: 'accept' }, 'p1');
-  ok(r.state.hands.p1.length === 6 && r.state.currentPlayerIndex === 2 && r.state.power.p1 === true, 'accepted +4');
+  ok(r.state.hands.p1.length === 6 && r.state.currentPlayerIndex === 2, 'accepted');
 }
 { // Last card: shout or be caught
   const st = setup(3, [[R, ['red', '7']]], R);
   const r = E.apply(st, { t: 'play', i: 0 }, 'p0');
   ok(r.state.uno?.pid === 'p0', 'one card → must shout');
-  const caught = E.apply(r.state, { t: 'catch' }, 'p2');
-  ok(caught.state.hands.p0.length === 3, 'caught → +2');
-  ok(caught.state.power.p0 === true, '(caught is not a recharge — token was already charged)');
+  ok(E.apply(r.state, { t: 'catch' }, 'p2').state.hands.p0.length === 3, 'caught → +2');
   const safe = E.apply(r.state, { t: 'shout' }, 'p0');
   ok(!safe.state.uno && E.apply(safe.state, { t: 'catch' }, 'p2').error, 'shouted → safe');
 }
-{ // Drawing: unplayable card passes by itself; playable one can be played or passed
-  const st = setup(3, [[['blue', '1']]], R);
+{ // Drawing: you may draw even with a playable card; a drawn card that fits may be played
+  const st = setup(3, [[['red', '1']]], R);
   st.drawPile[0] = { id: 1, c: 'green', v: '2' };
   let r = E.apply(st, { t: 'draw' }, 'p0');
-  ok(r.state.currentPlayerIndex === 1 && !r.state.drawn, 'unplayable draw passes');
+  ok(r.state.currentPlayerIndex === 1 && !r.state.drawn, 'unplayable draw passes (even with a playable card in hand)');
   const st2 = setup(3, [[['blue', '1']]], R);
   st2.drawPile[0] = { id: 1, c: 'red', v: '2' };
   r = E.apply(st2, { t: 'draw' }, 'p0');
-  ok(r.state.drawn && r.state.currentPlayerIndex === 0, 'playable draw waits');
-  ok(E.apply(r.state, { t: 'play', i: 0 }, 'p0').error === 'onlyDrawn', 'only the drawn card');
-  ok(E.apply(r.state, { t: 'play', i: 1 }, 'p0').state, 'drawn card playable');
+  ok(r.state.drawn && E.apply(r.state, { t: 'play', i: 0 }, 'p0').error === 'onlyDrawn' && E.apply(r.state, { t: 'play', i: 1 }, 'p0').state, 'drawn card playable');
 }
-{ // Winning scores the other hands
-  const st = setup(2, [[R], [['red', 'skip'], ['wild', 'wild'], ['red', '3', 'blue', 'gift'], ['blue', '4']]], R);
+{ // Scoring: numbers face value, actions 20, wilds 50
+  const st = setup(2, [[R], [['red', 'skip'], ['wild', 'wildFlip'], ['red', '3', 'blue'], ['blue', 'draw2', 'red']]], R);
   const r = E.apply(st, { t: 'play', i: 0 }, 'p0');
-  ok(r.state.status === 'ended' && r.state.winner === 'p0' && r.state.roundPoints === 84, 'score 20+40+20+4');
+  ok(r.state.status === 'ended' && r.state.roundPoints === 93, 'score 20+50+3+20');
 }
 { // Timeout only counts once
   const st = setup(3, [], R);
@@ -157,39 +150,38 @@ console.log('Hand-made situations');
 }
 { // The deck
   const d = E.createDeck();
-  ok(d.length === E.CARD_TOTAL && new Set(d.map(c => c.id)).size === d.length, '100 unique cards');
-  ok(d.filter(c => c.c2).length === 24 && d.filter(c => c.c === 'wild').length === 12, '24 chameleon, 12 wild');
+  ok(d.length === 104 && new Set(d.map(c => c.id)).size === 104, '104 unique cards');
+  ok(d.filter(c => c.flex && c.c !== 'wild').length === 44 && d.filter(c => c.c === 'wild').length === 16 && d.filter(c => c.flip).length === 8, 'deck makeup');
+  ok(!d.some(c => c.v === '0' || c.v === '9'), 'numbers are 1–8');
 }
 { // Joining and leaving mid-round keeps every card
   let st = E.newRound(P(4));
+  ok(['1','2','3','4','5','6','7','8'].includes(st.topValue), 'first table card is a number');
   st = E.addPlayer(st, { id: 'late', name: 'Late' });
-  ok(st.hands.late.length === 7 && st.players.length === 5 && st.power.late === true, 'late joiner gets 7 and a charged token');
+  ok(st.hands.late.length === 7 && st.power.late === true, 'late joiner gets 7 and a green Power Card');
   st.currentPlayerIndex = 2;
   st = E.removePlayer(st, 'p2');
   ok(st.players[st.currentPlayerIndex].id === 'p3', 'turn passes on when the current player leaves');
-  const all = [...st.drawPile, ...st.discard, ...Object.values(st.hands).flat()];
-  ok(all.length === E.CARD_TOTAL, 'no cards lost when leaving');
+  ok([...st.drawPile, ...st.discard, ...Object.values(st.hands).flat()].length === 104, 'no cards lost when leaving');
   st = E.removePlayer(E.removePlayer(E.removePlayer(st, 'p0'), 'p1'), 'p3');
   ok(st.status === 'ended' && st.winner === 'late', 'last one left wins');
 }
 
 // ---------- Many full bot games ----------
-const PERSONAS = ['attacker', 'trickster', 'saver', 'bluffer', 'balanced'];
+const PERSONAS = ['attacker', 'flexer', 'saver', 'bluffer', 'balanced'];
 function nested(v) {   // Firestore forbids arrays directly inside arrays, and undefined
   if (Array.isArray(v)) return v.some(x => Array.isArray(x) || nested(x));
   if (v && typeof v === 'object') return Object.values(v).some(x => nested(x));
   return v === undefined;
 }
-let games = 0, moves = 0, powers = 0, longest = 0, matchDone = 0;
-const used = {};
+let games = 0, moves = 0, flexes = 0, resets = 0, longest = 0;
 const N = Number(process.argv[2] || 3000);
 for (let g = 0; g < N; g++) {
-  const n = 2 + (g % 9);
+  const n = 2 + (g % 7);   // 2–8 players
   let st = E.newRound(P(n), { matchTarget: g % 3 ? 0 : 500 });
   let steps = 0;
   while (st.status === 'playing' && steps < 4000) {
     steps++;
-    // sometimes a player drops out, joins, or people shout / catch
     if (Math.random() < 0.002 && n > 2) {
       const p = st.players[Math.floor(Math.random() * st.players.length)];
       if (!p.disconnected && st.players.filter(x => !x.disconnected).length > 2) {
@@ -197,7 +189,7 @@ for (let g = 0; g < N; g++) {
       }
     }
     if (Math.random() < 0.003 && st.players.length > 2) st = E.removePlayer(st, st.players[Math.floor(Math.random() * st.players.length)].id);
-    else if (Math.random() < 0.002 && st.players.length < 10) st = E.addPlayer(st, { id: 'j' + steps, name: 'J' + steps });
+    else if (Math.random() < 0.002 && st.players.length < 8) st = E.addPlayer(st, { id: 'j' + steps, name: 'J' + steps });
     if (st.status !== 'playing') break;
     if (st.uno && Math.random() < 0.5) {
       const r = Math.random() < 0.6 ? E.apply(st, { t: 'shout' }, st.uno.pid)
@@ -213,19 +205,18 @@ for (let g = 0; g < N; g++) {
     if (r.error) { ok(false, `move error ${r.error} ${JSON.stringify(move)} phase=${JSON.stringify(st.phase)}`); break; }
     st = r.state;
     moves++;
-    for (const e of st.ev.list) if (e.t === 'power') { powers++; used[e.pw] = (used[e.pw] || 0) + 1; }
-    // every card is somewhere, exactly once
+    for (const e of st.ev.list) { if (e.t === 'play' && e.flex) flexes++; if (e.t === 'powerReset') resets++; }
     const all = [...st.drawPile, ...st.discard, ...Object.values(st.hands).flat()];
-    if (all.length !== E.CARD_TOTAL || new Set(all.map(c => c.id)).size !== E.CARD_TOTAL) { ok(false, `card count ${all.length}`); break; }
+    if (all.length !== 104 || new Set(all.map(c => c.id)).size !== 104) { ok(false, `card count ${all.length}`); break; }
     if (st.players.some(p => p.cardCount !== st.hands[p.id].length)) { ok(false, 'cardCount out of sync'); break; }
-    if (st.players.some(p => typeof st.power[p.id] !== 'boolean')) { ok(false, 'a player has no token'); break; }
+    if (st.players.some(p => typeof st.power[p.id] !== 'boolean')) { ok(false, 'a player has no Power Card'); break; }
+    if (st.status === 'playing' && st.players.every(p => !st.power[p.id])) { ok(false, 'everyone red after a move'); break; }
     if (st.phase === undefined || nested(st)) { ok(false, 'not saveable to Firestore'); break; }
   }
   if (st.status !== 'ended') ok(false, `game ${g} did not end (${steps} steps, ${n} players)`);
-  if (st.matchWinner) matchDone++;
   longest = Math.max(longest, steps);
   games++;
 }
-console.log(`${games} bot games, ${moves} moves, ${powers} powers used ${JSON.stringify(used)}, longest ${longest} moves`);
+console.log(`${games} bot games, ${moves} moves, ${flexes} flex plays, ${resets} all-red resets, longest ${longest} moves`);
 console.log(fails ? `${fails} FAILED` : 'All good ✓');
 process.exit(fails ? 1 : 0);
