@@ -734,8 +734,10 @@
           break;
         case 'gift': {
           if (rest.length < 2) break;
-          // hand the most awkward non-wild card to the rival closest to winning
-          const g = rest.filter(c => c.c !== WILD_COLOR).sort((a, b) => cardPoints(b) - cardPoints(a))[0];
+          // hand the most awkward plain card (not a wild, not a flexible chameleon card) to the
+          // rival closest to winning
+          const plain = rest.filter(c => c.c !== WILD_COLOR && !c.c2);
+          const g = (plain.length ? plain : rest.filter(c => c.c !== WILD_COLOR)).sort((a, b) => cardPoints(b) - cardPoints(a))[0];
           const to = rivals.slice().sort((a, b) => a.cardCount - b.cardCount)[0];
           if (g && to) { use = true; move.gift = { id: g.id, to: to.id }; }
           break;
