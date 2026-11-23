@@ -254,6 +254,6 @@ addEnglish({
   'rules.chT': '⚖️ Wild Draw Four', 'rules.ch': 'On its normal side it goes on anything, but you may only play it with NO card of the table colour in your hand (wilds count as a match). The next player either draws 4 and loses their turn, or challenges: if you did have a match, YOU draw 4 and they draw none; if not, they draw 6 and lose their turn. The colour you called stands either way.',
   'rules.unoT': '📣 LAST CARD!', 'rules.uno': 'When you have one card left, shout <strong>LAST CARD!</strong>. If someone catches you before the next player takes their turn, you draw 2.',
   'rules.ptsT': '🏆 Points', 'rules.pts': 'The round winner scores everyone else\'s cards: numbers (1–8) = their value, any action card = 20, any wild = 50. In a match, the first to 500 wins.',
-  'rules.hereT': 'How to play here', 'rules.here': 'On your turn each card shows <strong>✓</strong> if you can play it and <strong>✕</strong> if not. Tapping a wild, or a flex card while your ⚡ is green, opens a window to pick the colour and the side. Hold a card to see it big with its rule. Tap another player to throw something at them.',
+  'rules.hereT': 'How to play here', 'rules.here': 'On your turn the cards you can play <strong>rise and glow</strong>; the others go dim. Tapping a wild, or a flex card while your ⚡ is green, opens a window to pick the colour and the side. Hold a card to see it big with its rule. Tap another player to throw something at them.',
   'rules.ok': 'Got it'
 });
