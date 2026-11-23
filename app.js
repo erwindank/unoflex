@@ -65,9 +65,12 @@ function cardHTML(card, opts = {}) {
   const wild = card.c === WILD_COLOR;
   const flex = !!card.flex;
   const lbl = symbolOf(card.v);
+  // new look (look.js): drawn pictures, a four-colour leaf on wilds, pictures in the corners
+  const look = typeof lookIconHTML === 'function';
   const center = wild
-    ? `${wildQuadHTML()}<span class="wild-extra-label">${lbl}</span>`
-    : `<span class="card-label center">${lbl}</span>`;
+    ? (look ? lookWildCenterHTML(card.v) : `${wildQuadHTML()}<span class="wild-extra-label">${lbl}</span>`)
+    : ((look && lookIconHTML(card.v)) || `<span class="card-label center">${lbl}</span>`);
+  const corner = pos => look ? lookCornerHTML(card.v, pos) : `<span class="card-label ${pos}">${lbl}</span>`;
   // a flex card's second colour is the band across its foot (--c2)
   const vars = [];
   if (card.c2) vars.push(`--c2:${CARD_HEX[card.c2]}`);
@@ -78,7 +81,7 @@ function cardHTML(card, opts = {}) {
   const fxIcon = FLEX_ICON[card.v] || '';
   return `<div class="card ${cls}${opts.cls ? ' ' + opts.cls : ''}" data-v="${card.v}"${style}${opts.attrs || ''}>
     <span class="card-oval"></span>
-    <span class="card-label tl">${lbl}</span>${center}<span class="card-label br">${lbl}</span>
+    ${corner('tl')}${center}${corner('br')}
     ${card.c2 ? `<span class="flex-band"></span>` : ''}
     ${flex ? `<span class="flex-badge" title="${esc(t('flex.side'))}">🦎${fxIcon ? `<i>${fxIcon}</i>` : ''}</span>` : ''}
     ${card.flip ? `<span class="flip-badge" title="${esc(t('card.flipIcon'))}">🔄</span>` : ''}

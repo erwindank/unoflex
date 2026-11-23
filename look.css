@@ -1,0 +1,137 @@
+/* ============================================================
+   ¡CAMALEÓN! — NEW LOOK (the 7 ideas of the "UNO Fiesta New Look" mock-up,
+   brought to ¡CAMALEÓN! in its own rainforest colours, 2026-11-23)
+   Loaded last (after style.css, extras.css and camaleon.css); those stay untouched.
+   1 card faces · 2 table · 3 hand fan · 4 seats · 5 title screen · 6 font + buttons · 7 movement
+   ============================================================ */
+:root {
+  --lk-white: #f6fbf3;      /* card border + leaf */
+  --lk-out:   #0c1f19;      /* dark outline used on numbers and pictures */
+  --lk-lime:  #c6f432;      /* the ⚡ power colour */
+  --lk-teal:  #2dd4bf;
+  --lk-display: 'Lilita One', 'Arial Black', Impact, sans-serif;
+  --lk-body:    'Nunito', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ============================================================
+   1. REAL CARD FACES
+   White border, coloured face with a faint pattern of scales and a shine,
+   the tilted white leaf in the middle, a big outlined number (or a drawn picture).
+   Wilds get a four-colour leaf. Sizes inside the card use cqw (percent of the
+   card's width), so the same rules work in the hand, on the pile, previews and zoom.
+   ============================================================ */
+.card.c-red    { --cc2: #ff6a5c; }
+.card.c-yellow { --cc2: #ffd35a; }
+.card.c-green  { --cc2: #4fd384; }
+.card.c-blue   { --cc2: #5c95ff; }
+.card.c-wild   { --cc: #12211c; --cc2: #2b4a3f; }
+
+.card:is(.c-red, .c-yellow, .c-green, .c-blue, .c-wild) {
+  container-type: inline-size;
+  border: 3px solid var(--lk-white);
+  border-radius: 10px;
+  background-color: var(--cc);
+  background-image:
+    radial-gradient(circle at 50% 115%, rgba(255,255,255,.07) 34%, transparent 36%),
+    linear-gradient(160deg, var(--cc2), var(--cc) 62%);
+  background-size: 8px 6px, 100% 100%;
+  box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 5px 12px rgba(0,0,0,.45), 0 2px 0 rgba(0,0,0,.35);
+}
+/* the shine across the top */
+.card:is(.c-red, .c-yellow, .c-green, .c-blue, .c-wild)::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(155deg, rgba(255,255,255,.28) 0 24%, rgba(255,255,255,0) 25%);
+  pointer-events: none;
+  z-index: 0;
+}
+/* the leaf: white with a dark edge */
+.card .card-oval {
+  width: 70%; height: 72%;
+  background: var(--lk-white);
+  box-shadow: 0 0 0 2px var(--lk-out), 2px 2px 0 2px rgba(0,0,0,.3);
+}
+/* a flex card's leaf sits a little higher, above its flex-colour band */
+.card.flex-color .card-oval { top: 42%; height: 62%; }
+/* wilds: four-colour leaf */
+.card.c-wild .card-oval {
+  display: block;
+  background: conic-gradient(from 45deg, #E0322B 0 25%, #1F63E0 0 50%, #1FA251 0 75%, #F4B814 0);
+}
+.card .wild-quad, .card .wild-extra-label { display: none; }
+
+/* big number / +2 / +4 */
+.card .card-label.center,
+#top-card .card .card-label.center,
+.player-hand .card .card-label.center {
+  position: relative; z-index: 2;
+  font-family: var(--lk-display);
+  font-weight: 400;
+  font-size: 50cqw !important;   /* !important: beats the fixed rem sizes in style/extras/camaleon */
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--cc);
+  -webkit-text-stroke: 3.2cqw var(--lk-out);
+  paint-order: stroke fill;
+  text-shadow: 3cqw 3.5cqw 0 var(--lk-out);
+}
+.card.flex-color .card-label.center { margin-top: -14cqw; }
+.card.c-wild .card-label.center { color: #fff; font-size: 44cqw !important; }
+/* drawn picture in the middle */
+.card .card-icon {
+  position: relative; z-index: 2;
+  width: 46cqw; display: grid; place-items: center;
+  color: var(--cc);
+  filter: drop-shadow(2.5cqw 3cqw 0 rgba(12,31,25,.9));
+}
+.card.flex-color .card-icon { margin-top: -14cqw; }
+.card .card-icon svg { width: 100%; height: auto; overflow: visible; }
+/* the Diana's "+2" under the target */
+.card .wild-sub {
+  position: absolute; left: 62%; top: 58%; z-index: 2; rotate: -8deg;
+  font-family: var(--lk-display); font-size: 22cqw; line-height: 1; color: #fff;
+  -webkit-text-stroke: 2.4cqw var(--lk-out); paint-order: stroke fill;
+}
+
+/* corners */
+.card:is(.c-red, .c-yellow, .c-green, .c-blue, .c-wild) .card-label.tl,
+.card:is(.c-red, .c-yellow, .c-green, .c-blue, .c-wild) .card-label.br {
+  z-index: 2;
+  font-family: var(--lk-display);
+  font-weight: 400;
+  font-size: 18cqw !important;
+  line-height: 1;
+  color: #fff;
+  text-shadow: none;
+  -webkit-text-stroke: 2.4cqw var(--lk-out);
+  paint-order: stroke fill;
+}
+.card .card-label.tl { top: 5cqw; left: 7cqw; }
+.card .card-label.br { bottom: 5cqw; right: 7cqw; }
+.card .card-label.has-icon { width: 18cqw; color: #fff; display: grid; }
+.card .card-label.has-icon svg { width: 100%; height: auto; }
+/* 6 and 9 keep their underline */
+.card[data-v="6"] .card-label, .card[data-v="9"] .card-label { text-decoration-thickness: 1.2cqw; text-underline-offset: 2cqw; }
+
+/* flex band + 🦎 corner + 🔄 badge: sized with the card */
+.card .flex-band { height: 25%; border-top: 2.5cqw solid var(--lk-white); z-index: 1; }
+.card.flex-color .card-label.br { z-index: 3; }
+.card .flex-badge, .card .flip-badge { z-index: 3; box-shadow: 0 0 0 1px var(--lk-out); }
+
+/* ---- card back (draw pile, flying cards) ---- */
+.card.card-back-cham {
+  container-type: inline-size;
+  border: 3px solid var(--lk-white);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 115%, rgba(198,244,50,.16) 34%, transparent 36%) 0 0 / 10px 8px,
+    radial-gradient(ellipse at 50% 30%, #1f7a5c, #0b3329 70%, #061f19);
+  box-shadow: 0 5px 12px rgba(0,0,0,.5), 0 2px 0 rgba(0,0,0,.35);
+}
+/* lime-to-teal leaf badge with a dark edge, the lizard on top */
+.card.card-back-cham .cb-scale {
+  width: 72%; height: 66%;
+  background: linear-gradient(135deg, var(--lk-lime), #14b8a6 55%, #1F63E0);
+  box-shadow: 0 0 0 2px var(--lk-out), 2px 2px 0 2px rgba(0,0,0,.3);
+}
+.card.card-back-cham .cb-mark { font-size: 40cqw; filter: drop-shadow(1.5cqw 2cqw 0 var(--lk-out)); }
