@@ -982,7 +982,9 @@ function renderStatus(state) {
   else el.textContent = mine ? t('st.yourTurn') : t('st.turnOf', { name });
 
   const dirEl = document.getElementById('direction-indicator');
-  if (dirEl) dirEl.innerHTML = `<span class="dir-arrow">${state.direction === 1 ? '↻' : '↺'}</span>`;
+  // new look (look.js): a moving ring around the piles shows the direction instead
+  if (typeof lookDirectionHTML === 'function') lookDirectionHTML(state.direction);
+  else if (dirEl) dirEl.innerHTML = `<span class="dir-arrow">${state.direction === 1 ? '↻' : '↺'}</span>`;
   // The colour everybody has to follow
   const colEl = document.getElementById('color-indicator');
   if (colEl) {
