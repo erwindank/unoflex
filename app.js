@@ -953,19 +953,22 @@ function renderOpponents(state) {
     const hasVoice = !!peerConns[p.id];
     // a little fan of face-down cards (up to 12) — nobody sees anyone else's cards
     const n = p.cardCount || 0;
-    const backs = Array.from({ length: Math.min(n, 12) }, () => '<span class="mini-back"></span>').join('');
-    const more = n > 12 ? `<span class="mini-more">+${n - 12}</span>` : '';
+    // new look: the backs fan out (--k = position, --n = how many are shown)
+    const shown = Math.min(n, 10);
+    const backs = Array.from({ length: shown }, (_, k) => `<span class="mini-back" style="--k:${k}"></span>`).join('');
+    const more = n > 10 ? `<span class="mini-more">+${n - 10}</span>` : '';
     const nearWin = n > 0 && n <= 2;
     const reconnecting = !isDisconnected && !isBot(p.id) && presenceMissingSince[p.id];
     const pts = state.matchTarget ? `<span class="opp-points">${state.points?.[p.id] || 0} pts</span>` : '';
     return `<div class="opponent ${isCurrent ? 'active-player' : ''} ${p.id === nextId && !isCurrent ? 'next-player' : ''} ${nearWin ? 'near-win' : ''}
                                 ${isDisconnected ? 'player-disconnected' : ''} ${isSpeaking ? 'voice-speaking' : ''}"
                data-uid="${esc(p.id)}">
-      ${typeof seatFaceHTML === 'function' ? seatFaceHTML(state, p) : ''}
+      ${isCurrent ? `<span class="seat-pill seat-pill-turn">${t('seat.turn')}</span>` : n === 1 ? `<span class="seat-pill seat-pill-uno">${t('fx.uno')}</span>` : ''}
+      <div class="seat-ring">${typeof seatFaceHTML === 'function' ? seatFaceHTML(state, p) : ''}</div>
       <div class="opponent-name">${tokenHTML(Engine.hasPower(state, p.id))}${esc(p.name)}${isDisconnected ? ` <span class="dc-badge">${t('lob.dc')}</span>` : ''}${hasVoice ? ' <span class="voice-mic-icon">🎤</span>' : ''}</div>
       ${reconnecting ? `<span class="rc-badge" data-since="${presenceMissingSince[p.id]}" data-turn="${isCurrent ? 1 : 0}">${t('rc.label')}</span>` : ''}
-      <div class="opponent-cards">${backs}${more}</div>
-      <div class="opponent-count">${n}🃏${pts}</div>
+      <div class="opponent-cards" style="--n:${shown}">${backs}${more}</div>
+      <div class="opponent-count">${t(n === 1 ? 'seat.card' : 'seat.cards', { n })}${pts}</div>
     </div>`;
   }).join('');
 }
