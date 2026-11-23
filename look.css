@@ -329,3 +329,85 @@ body.calm .opponent.active-player .seat-ring::before, body.calm .seat-pill-uno {
   #opponents-row .opponent-cards { height: 24px; }
   #opponents-row .mini-back { width: 14px; height: 20px; margin-left: -8px; }
 }
+
+/* ============================================================
+   5. TITLE SCREEN
+   Big logo (a fan of real cards + ¡CAMALEÓN!), clear buttons, and the long rules
+   summary moved out: "Cómo jugar" opens the full rules window instead.
+   Button order: name → Jugar contra bots → Crear sala / Unirse → guided game → rules.
+   ============================================================ */
+#screen-landing {
+  background:
+    radial-gradient(ellipse at 50% 22%, rgba(198,244,50,.16), rgba(198,244,50,0) 40%),
+    radial-gradient(ellipse at 50% 30%, #12866a 0%, #0a4a3b 50%, #041a15 90%);
+}
+.landing-card {
+  background: rgba(4,26,21,.6);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 24px;
+  padding: 1.6rem 1.6rem 1.3rem;
+  width: min(420px, 94vw);
+  gap: .85rem;
+}
+.landing-card .rules-card, .landing-card .logo-cham { display: none; }
+.landing-lang   { order: 0; }
+.game-title     { order: 1; }
+.landing-card > .tagline { order: 2; margin-top: .3rem; color: #d4f7e6; }
+.name-emoji-area { order: 3; margin-top: .3rem; }
+#quick-bots-btn { order: 4; }
+.landing-card > .btn-group { order: 5; }
+#join-form      { order: 6; }
+#tutorial-link  { order: 7; }
+.how-link       { order: 8; }
+#landing-error  { order: 9; }
+.landing-card > p.muted { order: 10; }
+.stats-link     { order: 11; }
+
+/* logo */
+.game-title { position: relative; padding-top: 4px; display: flex; flex-direction: column; align-items: center; }
+.title-fan { display: flex; justify-content: center; align-items: flex-end; height: 96px; }
+.title-fan .card { width: 54px !important; height: 81px !important; margin-left: -16px; transform-origin: 50% 110%; }
+.title-fan .card:first-child { margin-left: 0; }
+.title-fan .card:nth-child(1) { rotate: -18deg; translate: 0 8px; }
+.title-fan .card:nth-child(2) { rotate: -6deg; }
+.title-fan .card:nth-child(3) { rotate: 6deg; }
+.title-fan .card:nth-child(4) { rotate: 18deg; translate: 0 8px; }
+.game-title .title-main {
+  font-family: var(--lk-display); font-weight: 400;
+  font-size: clamp(2.4rem, 11vw, 3.6rem); line-height: .95; letter-spacing: 1px;
+  -webkit-text-stroke: 4px var(--lk-out); paint-order: stroke fill;
+  text-shadow: 4px 5px 0 var(--lk-out);
+  margin-top: -8px; rotate: -4deg; position: relative; z-index: 1;
+}
+/* the letters keep cycling through the four card colours (camaleon.css) */
+
+/* big chunky buttons (same family as step 6) */
+#screen-landing .btn { font-family: var(--lk-display); font-weight: 400; letter-spacing: .4px; border-radius: 14px; min-height: 50px; font-size: 1.15rem; }
+#quick-bots-btn {
+  background: var(--lk-lime); color: var(--lk-out); border: 0;
+  box-shadow: 0 4px 0 #6a8f0c, 0 8px 16px rgba(0,0,0,.35);
+  font-size: 1.35rem; min-height: 58px;
+}
+#quick-bots-btn:hover { background: #d4ff52; }
+.landing-card > .btn-group .btn { font-size: 1.05rem; line-height: 1.1; }
+#create-btn {
+  background: #0d9488; color: #fff;
+  box-shadow: 0 4px 0 #075c55, 0 8px 16px rgba(0,0,0,.35);
+  -webkit-text-stroke: 1px var(--lk-out); paint-order: stroke fill;
+}
+.landing-card > .btn-group .btn-secondary {
+  background: rgba(255,255,255,.12); color: #fff;
+  box-shadow: 0 4px 0 rgba(0,0,0,.35);
+}
+#screen-landing .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+#tutorial-link, #tutorial-link.first-time {
+  background: rgba(255,255,255,.07); border: 1.5px dashed rgba(255,255,255,.3);
+  color: #fff; font-size: 1rem; min-height: 46px;
+}
+.how-link { align-self: center; color: #c8f5df; font-size: .9rem; }
+.stats-link { align-self: center; color: #c8f5df; }
+@media (max-height: 700px) {
+  .title-fan { height: 70px; }
+  .title-fan .card { width: 40px !important; height: 60px !important; }
+  .game-title .title-main { margin-top: -6px; }
+}

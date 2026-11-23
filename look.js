@@ -79,3 +79,17 @@ addStrings({
   'seat.card':  ['{n} carta', '{n} card'],
   'seat.cards': ['{n} cartas', '{n} cards']
 });
+
+// ---- 5. Title screen ---------------------------------------------------------
+addStrings({ 'land.howLink': ['Cómo jugar', 'How to play'] });
+// four real cards fanned above the name: a flex number, a skip, a wild and a flex reverse
+document.addEventListener('DOMContentLoaded', () => {
+  const fan = document.querySelector('.title-fan');
+  if (!fan || typeof cardHTML !== 'function') return;
+  fan.innerHTML = [
+    { c: 'red', c2: 'blue', v: '5', flex: true },
+    { c: 'yellow', v: 'skip' },
+    { c: 'wild', v: 'wildFlip' },
+    { c: 'green', c2: 'yellow', v: 'reverse', flex: true }
+  ].map(card => cardHTML(card)).join('');
+});
