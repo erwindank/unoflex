@@ -76,7 +76,9 @@
   text-shadow: 3cqw 3.5cqw 0 var(--lk-out);
 }
 .card.flex-color .card-label.center { margin-top: -14cqw; }
-.card.c-wild .card-label.center { color: #fff; font-size: 44cqw !important; }
+/* wilds: white +2/+4 — the #top-card copy beats the #top-card rule above (the table pile showed it dark and too big) */
+.card.c-wild .card-label.center,
+#top-card .card.c-wild .card-label.center { color: #fff; font-size: 40cqw !important; }
 /* drawn picture in the middle */
 .card .card-icon {
   position: relative; z-index: 2;
