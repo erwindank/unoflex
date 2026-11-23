@@ -70,8 +70,8 @@ addStrings({
   'danger.other': ['¡{name} está a 2 cartas!', '{name} is 2 cards away!'], 'danger.otherSub': ['¡Que no se escape!', "Don't let them get away!"],
   'danger.me': ['¡Te quedan 2 cartas!', 'You have 2 cards left!'], 'danger.meSub': ['No olvides gritar ¡ÚLTIMA!', "Don't forget to shout LAST CARD"],
   'timer.label': ['Tiempo por turno', 'Time per turn'], 'timer.off': ['Sin límite', 'No limit'], 'timer.s': ['{n} s', '{n} s'],
-  'timer.desc': ['Si se acaba: robas 1 y pasas. Ante un Comodín +4, lo aceptas.',
-                 'When time runs out you draw 1 and pass. Facing a Wild +4, you accept it.'],
+  'timer.desc': ['Si se acaba: robas 1 y pasas. Ante un Comodín Roba Cuatro, lo aceptas.',
+                 'When time runs out you draw 1 and pass. Facing a Wild Draw Four, you accept it.'],
   'badge.ok': ['Jugable', 'Playable'], 'badge.no': ['No se puede', "Can't play"],
   'match.label': ['Duración', 'Length'], 'match.round': ['Una ronda', 'One round'], 'match.match': ['Partida a 500', 'Match to 500'],
   'match.roundDesc': ['Gana quien se quede sin cartas primero.', 'Whoever runs out of cards first wins.'],
@@ -120,7 +120,7 @@ function afterGameRender(state, firstDraw) {
   listenThrows();
 }
 function resetGameExtras() {
-  _wasMyTurn = null; _countSeen = {}; _myMaxCards = 0; _bigRain = false;
+  _wasMyTurn = null; _countSeen = {}; _myMaxCards = 0; _moments = {};
   _timer = { key: null, start: 0, fired: false };
 }
 function renderMyFace(state) {
@@ -255,23 +255,24 @@ async function showNotice(icon, title, msg) {
 
 addStrings({
   'zoom.number': ['Carta de número: juégala si coincide en color o número.', 'Number card: play it if it matches the colour or number.'],
-  'zoom.cham':   ['🦎 Carta camaleón: entra sobre {a} o {b} (o el {v}) y tú eliges en cuál de los dos colores se queda.', '🦎 Chameleon card: goes on {a} or {b} (or a {v}), and you choose which of the two colours it becomes.'],
-  'zoom.power':  ['Poder: {power} — {why} (gasta tu ⚡).', 'Power: {power} — {why} (spends your ⚡).'],
-  'zoom.draw2':  ['+2: el siguiente roba 2 y pierde su turno (y su ⚡ se recarga).', '+2: the next player draws 2 and loses their turn (and their ⚡ recharges).'],
+  'zoom.flip':   ['🔄 Al jugarla, tu Carta de Poder se voltea (verde ↔ rojo).', '🔄 Playing it flips your Power Card (green ↔ red).'],
+  'zoom.draw2':  ['Roba Dos: el siguiente roba 2 y pierde su turno.', 'Draw Two: the next player draws 2 and loses their turn.'],
   'zoom.skip':   ['Salto: el siguiente pierde su turno.', 'Skip: the next player loses their turn.'],
   'zoom.reverse':['Reversa: cambia el sentido (con 2 jugadores, vuelves a jugar).', 'Reverse: changes direction (with 2 players you play again).'],
-  'zoom.wild':   ['Comodín: va sobre cualquier carta y eliges el color.', 'Wild: goes on any card and you pick the colour.'],
-  'zoom.wild4':  ['Comodín +4: eliges color y el siguiente roba 4 y pierde su turno. Solo es limpio si no tienes nada del color en juego (te pueden desafiar).', 'Wild +4: pick a colour; the next player draws 4 and loses their turn. Only fair if you hold nothing of the colour in play (you can be challenged).'],
-  'zoom.wildCham':['🦎 Comodín Camaleón: eliges color, tu ⚡ se recarga y el de todos los demás se apaga.', '🦎 Wild Chameleon: pick a colour; your ⚡ recharges and everybody else\'s switches off.'],
+  'zoom.wildFlip':['Comodín Voltea Todos: todos voltean su Carta de Poder y tú eliges el color.', "Wild All Flip: everyone flips their Power Card and you pick the colour."],
+  'zoom.wildTarget2':['Comodín Diana +2: por su lado normal es un comodín (eliges color).', 'Wild Target Draw 2: on its normal side it is a wild (pick a colour).'],
+  'zoom.wildAllDraw':['Comodín Todos Roban: por su lado normal es un comodín (eliges color).', 'Wild All Draw: on its normal side it is a wild (pick a colour).'],
+  'zoom.wild4':  ['Comodín Roba Cuatro: el siguiente roba 4 y pierde su turno. Solo puedes jugarlo sin cartas del color ni comodines (te pueden desafiar).', 'Wild Draw Four: the next player draws 4 and loses their turn. Only allowed with no card of the colour and no wild (you can be challenged).'],
+  'zoom.flex':   ['🦎 Lado flex (con tu ⚡ en verde): {why}', '🦎 Flex side (with your ⚡ green): {why}'],
   'zoom.points': ['Vale {n} puntos', 'Worth {n} points']
 });
 function zoomText(card) {
-  let rule;
-  if (card.c2) {
-    rule = esc(t('zoom.cham', { a: t('color.' + card.c), b: t('color.' + card.c2), v: card.v })) + '<br>' +
-      esc(t('zoom.power', { power: t('pw.' + card.pw), why: t('pw.' + card.pw + 'Why').replace(/\.$/, '') }));
-  } else {
-    rule = esc(t('zoom.' + (isNumber(card.v) ? 'number' : card.v)));
+  let rule = esc(t('zoom.' + (isNumber(card.v) ? 'number' : card.v)));
+  if (card.flip) rule += '<br>' + esc(t('zoom.flip'));
+  if (card.flex) {
+    const why = t('side.flex.' + (isNumber(card.v) ? 'number' : card.v), {
+      color: card.c2 ? t('color.' + card.c2) : '', keep: t('color.' + card.c) });
+    rule += '<br>' + esc(t('zoom.flex', { why }));
   }
   return `${rule} <small>${esc(t('zoom.points', { n: Engine.cardPoints(card) }))}</small>`;
 }
@@ -411,9 +412,9 @@ document.addEventListener('langchange', () => {
 addStrings({
   'win.series': ['Marcador de la sala', 'Room score'], 'win.awards': ['Premios de la ronda', 'Round awards'],
   'win.newBadge': ['¡Nueva insignia!', 'New badge!'],
-  'aw.tamer': ['Domador', 'Tamer'], 'aw.tamerWhy': ['usó {n} poderes', 'used {n} powers'],
-  'aw.cham': ['Camaleón', 'Chameleon'], 'aw.chamWhy': ['jugó {n} cartas camaleón', 'played {n} chameleon cards'],
-  'aw.drainer': ['Apagón', 'Blackout'], 'aw.drainerWhy': ['apagó {n} fichas', 'switched off {n} tokens'],
+  'aw.flexer': ['Camaleón', 'Chameleon'], 'aw.flexerWhy': ['usó {n} lados flex', 'used {n} flex sides'],
+  'aw.sniper': ['Francotirador', 'Sniper'], 'aw.sniperWhy': ['acertó {n} dianas', 'hit {n} targets'],
+  'aw.flipper': ['Volteador', 'Flipper'], 'aw.flipperWhy': ['jugó {n} Voltea Todos', 'played {n} Wild All Flips'],
   'aw.punisher': ['Castigador', 'Punisher'], 'aw.punisherWhy': ['hizo robar {n} cartas', 'made others draw {n} cards'],
   'aw.collector': ['Coleccionista', 'Card collector'], 'aw.collectorWhy': ['tuvo que robar {n} cartas', 'had to draw {n} cards'],
   'aw.hunter': ['Cazador', 'Hunter'], 'aw.hunterWhy': ['pilló {n} veces a alguien sin gritar', 'caught someone not shouting {n} times'],
@@ -421,15 +422,15 @@ addStrings({
   'aw.gate': ['Portero', 'Gatekeeper'], 'aw.gateWhy': ['hizo perder {n} turnos', 'made others lose {n} turns'],
   'stats.open': ['Tus estadísticas e insignias', 'Your stats and badges'], 'stats.title': ['Tus estadísticas', 'Your stats'],
   'stats.games': ['Rondas', 'Rounds'], 'stats.wins': ['Victorias', 'Wins'], 'stats.rate': ['% victorias', 'Win rate'],
-  'stats.streak': ['Mejor racha', 'Best streak'], 'stats.powers': ['Poderes usados', 'Powers used'],
+  'stats.streak': ['Mejor racha', 'Best streak'], 'stats.flexes': ['Lados flex', 'Flex sides'],
   'stats.taken': ['Cartas de castigo', 'Penalty cards'], 'stats.catches': ['Pillados', 'Catches'], 'stats.chWon': ['Desafíos ganados', 'Challenges won'],
   'stats.badges': ['Insignias', 'Badges'], 'stats.local': ['Se guardan en este dispositivo.', 'Saved on this device.'],
   'stats.close': ['Cerrar', 'Close'], 'stats.none': ['Juega una partida para empezar.', 'Play a game to get started.'],
   'b.first': ['Primera victoria', 'First win'], 'b.firstWhy': ['Gana una ronda', 'Win a round'],
-  'b.cham': ['Maestro camaleón', 'Chameleon master'], 'b.chamWhy': ['Gana una ronda jugando 3 cartas camaleón o más', 'Win a round playing 3 or more chameleon cards'],
-  'b.powers': ['Pura energía', 'Live wire'], 'b.powersWhy': ['Usa 3 poderes en una ronda', 'Use 3 powers in one round'],
-  'b.double': ['Doble final', 'Double finish'], 'b.doubleWhy': ['Gana la ronda con un ✌️ Doble', 'Win the round with a ✌️ Double'],
-  'b.rain': ['Tormenta', 'Storm'], 'b.rainWhy': ['Usa ☔ Lluvia con 4 rivales o más', 'Use ☔ Rain on 4 or more rivals'],
+  'b.flexer': ['Maestro camaleón', 'Chameleon master'], 'b.flexerWhy': ['Gana una ronda usando 3 lados flex o más', 'Win a round using 3 or more flex sides'],
+  'b.skipAll': ['Solo yo', 'Party of one'], 'b.skipAllWhy': ['Salta a todos con un Salto flex', 'Skip everyone with a flex Skip'],
+  'b.sniper': ['Francotirador', 'Sniper'], 'b.sniperWhy': ['Haz robar 4 con un Roba Cuatro flex', 'Make someone draw 4 with a flex Wild Draw Four'],
+  'b.flexFinish': ['Final flex', 'Flex finish'], 'b.flexFinishWhy': ['Gana la ronda con un lado flex', 'Win the round with a flex side'],
   'b.lawyer': ['Abogado', 'Lawyer'], 'b.lawyerWhy': ['Gana un desafío', 'Win a challenge'],
   'b.untouched': ['Intocable', 'Untouchable'], 'b.untouchedWhy': ['Gana sin robar ni una carta de castigo', 'Win without drawing a single penalty card'],
   'b.comeback': ['Remontada', 'Comeback'], 'b.comebackWhy': ['Gana después de tener 12 cartas o más', 'Win after holding 12 or more cards'],
@@ -440,11 +441,14 @@ addStrings({
   'b.legend': ['Leyenda', 'Legend'], 'b.legendWhy': ['Gana 10 rondas', 'Win 10 rounds']
 });
 
-// The engine counts the stats itself; this only remembers a ☔ Rain of mine on 4+ rivals
-// (for the "Storm" badge), since the stats don't say how many people one Rain hit
-let _bigRain = false;
+// The engine counts the stats itself; this only remembers two moments for badges:
+// a flex Skip All of mine and a flex Wild Draw Four of mine
+let _moments = {};
 function onFxEvents(evs) {
-  for (const e of evs) if (e.t === 'power' && e.pw === 'rain' && e.pid === localUid && (e.n || 0) >= 4) _bigRain = true;
+  for (const e of evs) {
+    if (e.t === 'skipAll' && e.pid === localUid) _moments.skipAll = true;
+    if (e.t === 'target' && e.pid === localUid && e.n === 4) _moments.sniper = true;
+  }
 }
 
 // Room score: the host adds the win once per round (gameNo/roundNo + seriesDone)
@@ -459,9 +463,9 @@ function saveSeriesOnEnd(state) {
     .catch(() => {});
 }
 const AWARDS = [
-  { id: 'tamer',     icon: '⚡', stat: 'powers',        min: 2 },
-  { id: 'cham',      icon: '🦎', stat: 'chams',         min: 3 },
-  { id: 'drainer',   icon: '🔌', stat: 'drains',        min: 2 },
+  { id: 'flexer',    icon: '🦎', stat: 'flexes',        min: 2 },
+  { id: 'sniper',    icon: '🎯', stat: 'targets',       min: 1 },
+  { id: 'flipper',   icon: '⚡', stat: 'allFlips',      min: 2 },
   { id: 'punisher',  icon: '💥', stat: 'dealt',         min: 6 },
   { id: 'collector', icon: '🃏', stat: 'taken',         min: 6 },
   { id: 'gate',      icon: '⊘',  stat: 'skips',         min: 3 },
@@ -485,10 +489,10 @@ function matchAwards(state) {
 const MY_STATS_KEY = 'camaleonMyStats';
 const BADGES = [
   { id: 'first',     icon: '🏆', test: c => c.won },
-  { id: 'cham',      icon: '🦎', test: c => c.won && (c.ms.chams || 0) >= 3 },
-  { id: 'powers',    icon: '⚡', test: c => (c.ms.powers || 0) >= 3 },
-  { id: 'double',    icon: '✌️', test: c => c.won && c.doubleWin },
-  { id: 'rain',      icon: '☔', test: c => c.bigRain },
+  { id: 'flexer',    icon: '🦎', test: c => c.won && (c.ms.flexes || 0) >= 3 },
+  { id: 'skipAll',   icon: '⊘',  test: c => c.moments.skipAll },
+  { id: 'sniper',    icon: '🎯', test: c => c.moments.sniper },
+  { id: 'flexFinish',icon: '✨', test: c => c.won && c.flexFinish },
   { id: 'lawyer',    icon: '⚖️', test: c => (c.ms.challengesWon || 0) >= 1 },
   { id: 'untouched', icon: '🛡️', test: c => c.won && !(c.ms.taken || 0) },
   { id: 'comeback',  icon: '🚀', test: c => c.won && c.maxCards >= 12 },
@@ -499,7 +503,7 @@ const BADGES = [
   { id: 'legend',    icon: '💫', test: c => c.s.wins >= 10 }
 ];
 function loadMyStats() {
-  const base = { games: 0, wins: 0, streak: 0, best: 0, powers: 0, taken: 0, catches: 0, chWon: 0, badges: {}, recorded: [] };
+  const base = { games: 0, wins: 0, streak: 0, best: 0, flexes: 0, taken: 0, catches: 0, chWon: 0, badges: {}, recorded: [] };
   try { return Object.assign(base, JSON.parse(localStorage.getItem(MY_STATS_KEY) || '{}')); } catch (_) { return base; }
 }
 function saveMyStats(s) { try { localStorage.setItem(MY_STATS_KEY, JSON.stringify(s)); } catch (_) {} }
@@ -512,11 +516,11 @@ function recordMyGame(state, gameKey) {
   const ms = state.stats?.[localUid] || {};
   s.games++;
   if (won) { s.wins++; s.streak++; s.best = Math.max(s.best, s.streak); } else s.streak = 0;
-  s.powers += ms.powers || 0; s.taken += ms.taken || 0; s.catches += ms.catches || 0; s.chWon += ms.challengesWon || 0;
-  // the last move's events: did I go out with a ✌️ Double? (Rain is counted as it happens, below)
+  s.flexes += ms.flexes || 0; s.taken += ms.taken || 0; s.catches += ms.catches || 0; s.chWon += ms.challengesWon || 0;
+  // the last move's events: did I go out on a flex side?
   const lastEvs = state.ev?.list || [];
-  const doubleWin = won && lastEvs.some(e => e.t === 'power' && e.pw === 'double' && e.pid === localUid);
-  const ctx = { s, won, ms, maxCards: _myMaxCards, doubleWin, bigRain: _bigRain, champion: state.matchWinner === localUid };
+  const flexFinish = won && lastEvs.some(e => e.t === 'play' && e.flex && e.pid === localUid);
+  const ctx = { s, won, ms, maxCards: _myMaxCards, flexFinish, moments: _moments, champion: state.matchWinner === localUid };
   const fresh = BADGES.filter(b => !s.badges[b.id] && b.test(ctx));
   for (const b of fresh) s.badges[b.id] = new Date().toISOString().slice(0, 10);
   saveMyStats(s);
@@ -615,7 +619,7 @@ function openMyStats() {
     <h3 class="spotify-modal-title">🏅 ${t('stats.title')}</h3>
     ${s.games ? '' : `<p class="spotify-modal-desc">${t('stats.none')}</p>`}
     <div class="st-grid">${tile('games', s.games)}${tile('wins', s.wins)}${tile('rate', rate)}${tile('streak', s.best)}
-      ${tile('powers', s.powers)}${tile('taken', s.taken)}${tile('catches', s.catches)}${tile('chWon', s.chWon)}</div>
+      ${tile('flexes', s.flexes)}${tile('taken', s.taken)}${tile('catches', s.catches)}${tile('chWon', s.chWon)}</div>
     <div class="mode-label" style="align-self:flex-start">${t('stats.badges')} · ${Object.keys(s.badges).length}/${BADGES.length}</div>
     <div class="badge-grid">${BADGES.map(b => `<div class="badge ${s.badges[b.id] ? 'got' : 'locked'}">
       <span class="badge-icon">${b.icon}</span><b>${t('b.' + b.id)}</b><span>${t('b.' + b.id + 'Why')}</span></div>`).join('')}</div>

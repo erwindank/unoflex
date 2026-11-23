@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>¡CAMALEÓN!</title>
-  <meta name="description" content="Juego de cartas online con cartas de dos colores y fichas de poder. Juega con amigos o contra bots.">
+  <meta name="description" content="Juego de cartas online con cartas flex y Cartas de Poder. Juega con amigos o contra bots.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&display=swap" rel="stylesheet">
@@ -31,17 +31,17 @@
     <!-- The logo is a chameleon card that keeps changing colour -->
     <div class="logo-cham" aria-hidden="true"><div class="logo-card"><span class="logo-lizard">🦎</span><span class="logo-bolt">⚡</span></div></div>
     <h1 class="game-title"><span class="title-main" aria-label="¡CAMALEÓN!"><span>¡</span><span>C</span><span>A</span><span>M</span><span>A</span><span>L</span><span>E</span><span>Ó</span><span>N</span><span>!</span></span></h1>
-    <p class="tagline" data-i18n="land.tagline">Cartas de dos colores, un poder en tu mano. Cambia de color antes que nadie.</p>
+    <p class="tagline" data-i18n="land.tagline">Cartas con un segundo color, una ⚡ Carta de Poder frente a ti. Usa el lado flex en el momento justo.</p>
     <div class="rules-card">
       <h2 data-i18n="land.howTitle">Cómo jugar</h2>
-      <p data-i18n="land.how1">Juega una carta que coincida en <strong>color, número o símbolo</strong> con la de la mesa, o un comodín. ¿No puedes? Roba una. ¿Te queda una sola? Grita <strong>¡ÚLTIMA!</strong></p>
-      <p data-i18n="land.how2">Las <strong>🦎 cartas camaleón</strong> tienen dos colores: entran sobre cualquiera de los dos y <strong>tú eliges</strong> en qué color se quedan.</p>
+      <p data-i18n="land.how1">Juega una carta que coincida en <strong>color, número o símbolo</strong> con la de la mesa, o un comodín. ¿No puedes (o no quieres)? Roba una. ¿Te queda una sola? Grita <strong>¡ÚLTIMA!</strong></p>
+      <p data-i18n="land.how2">Las <strong>🦎 cartas flex</strong> tienen un color normal y un segundo color <strong>flex</strong>. Mientras tu <strong>⚡ Carta de Poder</strong> esté en verde puedes jugar el lado flex: coincidir por su color flex o lanzar la acción flex, más fuerte. El siguiente sigue con el color normal de la carta. Usar un lado flex pone tu Carta de Poder en rojo.</p>
       <ul data-i18n="land.how3">
-        <li>Tienes una ficha de <strong>⚡ poder</strong>. Si está cargada, al jugar una carta camaleón puedes usar su poder: <strong>☔ Lluvia</strong> (los demás roban 1), <strong>🔁 Otra vez</strong> (vuelves a jugar), <strong>🎁 Regalo</strong> (le das una carta a alguien) o <strong>✌️ Doble</strong> (sueltas otra carta del mismo color).</li>
-        <li>Tu ficha se recarga cuando te hacen robar con un <strong>+2</strong> o un <strong>Comodín +4</strong>. El <strong>🦎 Comodín Camaleón</strong> recarga la tuya y apaga la de todos los demás.</li>
-        <li>El Comodín +4 solo es limpio si no tienes nada del color en juego — el siguiente puede <strong>desafiarte</strong>.</li>
+        <li>Acciones flex: <strong>Roba Dos</strong> → todos los demás roban 1 · <strong>Salto</strong> → salta a todos · <strong>Reversa</strong> → cambia y salta · <strong>Comodín Diana +2 / Roba Cuatro</strong> → roba el jugador que elijas · <strong>Comodín Todos Roban</strong> → todos los demás roban 2.</li>
+        <li>Tu Carta de Poder se voltea al jugar una carta de número con <strong>🔄</strong>, cuando alguien juega un <strong>Comodín Voltea Todos</strong>, y todas vuelven a verde cuando <strong>todos están en rojo</strong>.</li>
+        <li>El Comodín Roba Cuatro (lado normal) solo es limpio si no tienes cartas del color ni comodines — el siguiente puede <strong>desafiarte</strong>.</li>
       </ul>
-      <p data-i18n="land.how4">Vacía tu mano para ganar la ronda y llevarte los puntos de las cartas de los demás. Juega una ronda o una partida a 500.</p>
+      <p data-i18n="land.how4">Vacía tu mano para ganar la ronda y llevarte los puntos de las cartas de los demás. Juega una ronda o una partida a 500. De 2 a 8 jugadores.</p>
       <button type="button" class="link-btn" onclick="openRules()" data-i18n="land.allRules">Ver todas las reglas →</button>
     </div>
     <!-- Guided first game (tutorial.js fills in the text) -->
@@ -65,7 +65,7 @@
     <!-- One tap into a game against 3 bots -->
     <button class="btn btn-bots-quick" id="quick-bots-btn" onclick="handleQuickBots()">🤖 <span data-i18n="land.bots">Jugar contra bots</span></button>
     <div id="landing-error" class="error hidden"></div>
-    <p class="muted" style="font-size:.75rem;text-align:center" data-i18n="land.players">Hasta 10 jugadores · No se necesita cuenta</p>
+    <p class="muted" style="font-size:.75rem;text-align:center" data-i18n="land.players">Hasta 8 jugadores · No se necesita cuenta</p>
     <button type="button" class="link-btn stats-link" onclick="openMyStats()">🏅 <span data-i18n="stats.open">Tus estadísticas e insignias</span><span id="stats-link-count"></span></button>
   </div>
 </div>
@@ -277,23 +277,23 @@
     <h3 class="spotify-modal-title" data-i18n="rules.title">📖 Reglas de ¡CAMALEÓN!</h3>
     <div class="rules-body">
       <h4 data-i18n="rules.goalT">Objetivo</h4>
-      <p data-i18n="rules.goal">Quedarte sin cartas antes que nadie. Cada carta debe coincidir en <strong>color</strong> o <strong>número/símbolo</strong> con la de la mesa, o ser un comodín. Si no puedes jugar, roba una: si sirve puedes jugarla al momento; si no, pasa tu turno.</p>
-      <h4 data-i18n="rules.chamT">🦎 Cartas camaleón</h4>
-      <p data-i18n="rules.cham">Tienen <strong>dos colores</strong> (en diagonal) y un número. Entran si la mesa pide <strong>cualquiera de sus dos colores</strong> o su número, y al jugarla <strong>eliges en cuál de los dos colores se queda</strong>: ese es el color que tendrá que seguir el siguiente. Cada una lleva además un poder (el dibujo de la esquina).</p>
-      <h4 data-i18n="rules.tokenT">⚡ Tu ficha de poder</h4>
-      <p data-i18n="rules.token">Empiezas cada ronda con la ficha <strong>cargada</strong>. Al jugar una carta camaleón puedes gastarla para usar el poder de esa carta — o guardarla para más tarde. Se <strong>recarga</strong> cuando alguien te hace robar con un +2 o un Comodín +4. Todos ven qué fichas están cargadas.</p>
-      <h4 data-i18n="rules.powersT">Los cuatro poderes</h4>
-      <p data-i18n="rules.powers"><strong>☔ Lluvia</strong> todos los demás roban 1 · <strong>🔁 Otra vez</strong> vuelves a jugar enseguida · <strong>🎁 Regalo</strong> le das una de tus cartas a quien quieras (te tiene que quedar al menos una) · <strong>✌️ Doble</strong> sueltas también otra carta del color que elegiste (su acción no cuenta, y sí, puede dejarte sin cartas).</p>
-      <h4 data-i18n="rules.cardsT">Otras cartas</h4>
-      <p data-i18n="rules.cards"><strong>+2</strong> el siguiente roba 2 y pierde su turno · <strong>⊘</strong> salto · <strong>⇄</strong> reversa (con 2 jugadores funciona como salto) · <strong>Comodín</strong> eliges el color · <strong>Comodín +4</strong> eliges el color, el siguiente roba 4 y pierde su turno · <strong>🦎 Comodín Camaleón</strong> eliges el color, tu ficha se recarga y la de todos los demás se apaga.</p>
-      <h4 data-i18n="rules.chT">⚖️ Desafío</h4>
-      <p data-i18n="rules.ch">El Comodín +4 solo es limpio si no tienes ninguna carta del color en juego (una carta camaleón con ese color cuenta). El siguiente puede <strong>aceptar</strong> o <strong>desafiar</strong>. ¿Te pillan? Robas tú las 4 y él conserva su turno. ¿Era limpio? Él roba 6.</p>
+      <p data-i18n="rules.goal">Quedarte sin cartas antes que nadie. En tu turno juega UNA carta que coincida en <strong>color, número o símbolo</strong> con la de la mesa, o un comodín. Si no tienes, roba una: si sirve puedes jugarla al momento. También puedes robar en vez de jugar, aunque tengas una carta que sirva.</p>
+      <h4 data-i18n="rules.flexT">🦎 Cartas flex</h4>
+      <p data-i18n="rules.flex">Una carta flex tiene un lado normal (su color principal) y un <strong>lado flex</strong> (un segundo color en su base y la esquina 🦎). Se juega por su lado normal salvo que elijas el lado flex. El lado flex de una carta de <strong>número</strong> le deja coincidir por su color flex — pero el siguiente tiene que seguir su color <strong>normal</strong>.</p>
+      <h4 data-i18n="rules.powerT">⚡ Carta de Poder</h4>
+      <p data-i18n="rules.power">Todos empiezan con su Carta de Poder en <strong>verde</strong>. Solo en verde puedes jugar un lado flex, y al hacerlo pasa a <strong>rojo</strong>. Sigue en rojo hasta que: todas las Cartas de Poder están en rojo a la vez (todas vuelven a verde), juegas una carta de número con el icono <strong>🔄</strong> (DEBES voltear la tuya, de verde a rojo o de rojo a verde), o alguien juega un <strong>Comodín Voltea Todos</strong> (todos voltean la suya).</p>
+      <h4 data-i18n="rules.actionsT">Cartas de acción</h4>
+      <p data-i18n="rules.actions"><strong>Roba Dos</strong> el siguiente roba 2 y pierde su turno · <strong>Salto</strong> el siguiente pierde su turno · <strong>Reversa</strong> cambia el sentido (con 2 jugadores funciona como salto) · <strong>Comodín Voltea Todos</strong> todos voltean su Carta de Poder y tú eliges el color. Una carta de acción puede ir sobre otra del mismo color o símbolo.</p>
+      <h4 data-i18n="rules.flexActT">Lados flex</h4>
+      <p data-i18n="rules.flexAct"><strong>Roba Dos flex</strong> todos los demás roban 1; el siguiente sí juega · <strong>Salto flex</strong> SALTA A TODOS, el turno vuelve a ti · <strong>Reversa flex</strong> cambia el sentido y salta al primero en la nueva dirección · <strong>Comodín Diana +2 flex</strong> roba 2 el jugador que elijas · <strong>Comodín Todos Roban flex</strong> todos los demás roban 2; el siguiente sí juega · <strong>Comodín Roba Cuatro flex</strong> roba 4 el jugador que elijas. Por su lado normal, el Diana +2 y el Todos Roban son comodines normales. Después de un robo con diana, sigue el siguiente jugador.</p>
+      <h4 data-i18n="rules.chT">⚖️ Comodín Roba Cuatro</h4>
+      <p data-i18n="rules.ch">Por su lado normal va sobre cualquier carta, pero solo puedes jugarlo si NO tienes ninguna carta del color de la mesa (los comodines cuentan como coincidencia). El siguiente roba 4 y pierde su turno, o te desafía: si tenías coincidencia, robas TÚ 4 y él ninguna; si no, él roba 6 y pierde su turno. El color que elegiste se queda en ambos casos.</p>
       <h4 data-i18n="rules.unoT">📣 ¡ÚLTIMA!</h4>
-      <p data-i18n="rules.uno">Cuando te quede una carta, grita <strong>¡ÚLTIMA!</strong>. Si alguien te pilla antes, robas 2.</p>
+      <p data-i18n="rules.uno">Cuando te quede una carta, grita <strong>¡ÚLTIMA!</strong>. Si alguien te pilla antes de que juegue el siguiente, robas 2.</p>
       <h4 data-i18n="rules.ptsT">🏆 Puntos</h4>
-      <p data-i18n="rules.pts">Quien gana la ronda se lleva los puntos de las cartas de los demás: números = su valor, cartas camaleón = 20, +2/Reversa/Salto = 20, Comodín = 40, Comodín +4 y Comodín Camaleón = 50. En una partida, gana el primero en llegar a 500.</p>
+      <p data-i18n="rules.pts">Quien gana la ronda se lleva los puntos de las cartas de los demás: números (1–8) = su valor, cualquier carta de acción = 20, cualquier comodín = 50. En una partida, gana el primero en llegar a 500.</p>
       <h4 data-i18n="rules.hereT">Cómo jugar aquí</h4>
-      <p data-i18n="rules.here">En tu turno cada carta muestra <strong>✓</strong> si se puede jugar y <strong>✕</strong> si no. Al tocar una carta camaleón o un comodín se abre una ventana para elegir el color y, si quieres, el poder. Mantén pulsada una carta para verla en grande con su regla. Toca a otro jugador para lanzarle algo.</p>
+      <p data-i18n="rules.here">En tu turno cada carta muestra <strong>✓</strong> si se puede jugar y <strong>✕</strong> si no. Al tocar un comodín, o una carta flex con tu ⚡ en verde, se abre una ventana para elegir el color y el lado. Mantén pulsada una carta para verla en grande con su regla. Toca a otro jugador para lanzarle algo.</p>
     </div>
     <div class="spotify-modal-btns"><button class="btn btn-primary btn-sm" onclick="closeRules()" data-i18n="rules.ok">Entendido</button></div>
   </div>

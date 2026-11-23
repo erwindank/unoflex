@@ -1,69 +1,79 @@
-# ¡CAMALEÓN! build plan (2026-11-22)
+# ¡CAMALEÓN! build plan
 
-A "flex" style colour-matching card game built to the same standard as ¡VOLTEA!, UNO Fiesta,
-UNO Mentiroso and VIRUS!, with its own name and look (not the Mattel product's name or art).
-The GitHub repo is still called `unoflex`.
+A card game that plays by the **UNO Flex rules**, built to the same standard as ¡VOLTEA!,
+UNO Fiesta, UNO Mentiroso and VIRUS!. It has its own name and look (¡CAMALEÓN!, rainforest
+table, its own card art), not the Mattel product's name or art. The GitHub repo is `unoflex`.
 
-- 🦎 **Chameleon cards** (24 of 100) are split corner to corner between **two colours**. They go
-  on either colour (or their number), and you **choose which of the two colours** they become.
-- ⚡ **Power token**: everyone starts each round charged. Playing a chameleon card while charged
-  lets you use that card's power, which spends the token:
-  - ☔ **Rain**: everybody else draws 1
-  - 🔁 **Again**: you play again straight away
-  - 🎁 **Gift**: give one of your cards to a player you choose (you must keep at least one)
-  - ✌️ **Double**: also drop another card of the colour you picked (it can win the round)
-- The token **recharges** when a +2 or Wild +4 makes you draw. A 🦎 **Wild Chameleon**
-  recharges yours and switches everybody else's off. Everyone's token is shown on their seat.
-- Other cards: +2, Skip, Reverse, Wild and Wild +4. The Wild +4 can be challenged, and a
-  chameleon card that has the colour counts as "having the colour".
-- **¡ÚLTIMA!**: shout it when you're down to one card, or get caught (+2). Rounds score
-  points (chameleon cards are worth 20), with an optional match to 500.
+- First built (2026-11-22) with its own "chameleon card + powers" rules.
+- 2026-11-22 (on request): switched to match every UNO Flex rule from the official Mattel rule
+  sheet (HMY99).
+
+## The rules (as in the official UNO Flex sheet)
+- Deck of 104 playing cards plus 8 Power Cards, so 2–8 players. 7 cards each. Numbers run 1–8.
+  If the first table card is an action or wild card, it is passed over and the next number card is used.
+- On your turn play ONE card matching colour, number or symbol. Otherwise draw one card, which
+  you may play straight away if it fits. You may draw instead of playing even with a playable card.
+- **Flex cards** have a normal side and a flex side. Playing the flex side needs your **Power Card
+  on green** and turns it **red**:
+  - Flex number cards match by their flex colour, but the **normal colour carries on**.
+  - Flex Draw Two: every other player draws 1, and the next player still plays.
+  - Flex Skip: SKIP ALL, so the turn comes back to you.
+  - Flex Reverse: reverse, then the first player in the new direction is skipped.
+  - Flex Wild Target Draw 2: a player you choose draws 2.
+  - Flex Wild All Draw: every other player draws 2.
+  - Flex Wild Draw Four: a player you choose draws 4.
+  - On their normal side, Target Draw 2 and All Draw are plain wilds.
+- A Power Card stays red until one of these happens:
+  - every player is red at the same time (all turn green)
+  - you play a number card with the **🔄 flip icon** (yours MUST flip, either way)
+  - anyone plays a **Wild All Flip** (everybody's flips, and the player calls the colour)
+- Classic actions: Draw Two (the next player draws 2 and loses their turn), Skip, Reverse (with 2 players it works like a skip).
+- **Wild Draw Four** (normal side): only allowed with no card of the colour in hand, and any wild
+  counts as a match. The next player either draws 4 and loses their turn, or challenges:
+  - guilty: the player who played it draws 4, the challenger draws none and plays
+  - fair: the challenger draws 6 and loses their turn
+  The colour called stands either way.
+- Shout ¡ÚLTIMA! at one card; if caught before the next player's turn, draw 2.
+- Scoring: numbers count their face value, actions 20, wilds 50. Optional match to 500.
+
+### Where the official sheet is silent (choices made here)
+- Card counts per type (from a fan wiki deck list, which adds up to 112):
+  - per colour: 1–8 classic and 1–8 flex number cards, plus one classic and one flex Draw Two, Skip and Reverse
+  - wilds: 6 Wild All Flip, 2 Flex Wild Draw Four, and 8 other flex wilds, split here as 4 Target Draw 2 + 4 All Draw
+- The 🔄 flip icon is on 2 classic number cards per colour.
+- Flex colours go round the other three colours.
+- After a targeted draw (even on the next player), play simply goes on with the next player, as the sheet says.
 
 ## How it's built (same setup as ¡VOLTEA!)
-- `engine.js`: **all the rules in one place**, with no screen or Firebase code. Every move (players, bots,
-  guided game, timer) goes through `Engine.apply(state, move, actor)`. A play move is
-  `{t:'play', id, color, power?, gift?:{id,to}, extra?}`.
-- app.js saves each move in **one Firestore transaction**.
-- Effects and stats read the **events** the engine writes (`state.ev`: play, power, charge, draw…).
-- Log entries are `{k, p}` and turned into words when shown (ES/EN).
-- `node test-engine.js [games]` checks each card and power by hand, then plays thousands of
-  bot games.
-- Rooms are tagged `game: 'camaleon'` (all the games share the Firestore 'rooms' collection).
+- `engine.js`: all the rules in one place. Every move goes through `Engine.apply(state, move, actor)`.
+  A play move is `{t:'play', id, flex?, color? (wilds), target? (targeted flex wilds)}`.
+- app.js saves each move in one Firestore transaction. Effects read the engine's events
+  (`play {flex}`, `powerFlip`, `powerReset`, `skipAll`, `target`, `flexEffect`…).
+- Log entries are `{k, p}` and are put into words in ES or EN when shown. Rooms are tagged `game: 'camaleon'`.
+- `node test-engine.js [games]` checks every card side and Power Card rule by hand, then plays
+  thousands of bot games (no lost cards, every game ends, nobody is left all-red, every state can be saved).
 
-## Steps
-1. [x] Rules engine + tests
-2. [x] App shell and game screen: two-colour cards, ⚡ tokens on every seat and next to my hand,
-       the colour indicator, a play window (pick the colour, switch the power on, choose the gift card +
-       player or the Double card), the challenge panel, ¡ÚLTIMA!, the log; rainforest theme
-       (camaleon.css); chat/voice/music/Spotify/Last.fm kept from ¡VOLTEA!
-3. [x] Bots: 5 personalities (Petardo, Pintas the chameleon/power lover, Ahorrador keeps its
-       token for the end, Farolero bluffs, Robo) and 3 levels; they choose colours and powers
-4. [x] fx.js: the card shimmers into its new colour, ☔ rain over the table, 🎁 a card flying
-       between seats, ✌️ the second card following, ⚡ recharge / switch-off, a 🦎 banner.
-       extras.js: card zoom with the power's rule, awards (Tamer, Chameleon, Blackout…),
-       badges (Chameleon master, Live wire, Double finish, Storm…), stats
-5. [x] Guided first game (7 steps: colour, +2 with a recharge, chameleon card + 🔁 Again, Wild
-       Chameleon, ✌️ Double, ¡ÚLTIMA!, win), ES/EN, rules window
-6. [x] Icons, manifest, service worker, browser tests
+## Screen
+- The play window opens for wilds (to pick a colour) and for flex cards while your Power Card is green.
+  It shows the normal side and the flex side next to each other with what each one does. When only
+  the flex side fits, it is picked for you. Targeted wilds also ask who draws.
+- Every seat shows its ⚡ Power Card (green or red). Your own is shown next to your hand.
+- Flex cards show a band of their flex colour across the foot and a 🦎 corner with what the flex
+  side does. Flip-icon cards show 🔄.
+- Guided first game: 8 steps (colour, Draw Two, flex side, 🔄 card, flex Skip, Wild All Flip, ¡ÚLTIMA!, win).
 
-## Testing notes
-- `node test-engine.js [games]` covers the rules by hand plus thousands of bot games (2–10 players,
-  joins/leaves/disconnects, shouts/catches). It checks that no card is lost or copied, cardCount and
-  tokens stay in sync, every game ends, every state can be saved to Firestore, and all four powers get used.
-- Browser checks (2026-11-22) ran with Playwright against an in-memory stand-in for Firebase,
-  so no test rooms were written to the live database:
+## Testing notes (2026-11-22)
+- The rules tests pass, and 3,000 bot games ran with flex plays, all-red resets and targeted draws.
+- Browser tests ran with Playwright against an in-memory stand-in for Firebase:
   - the guided game to the end
-  - a full game against 3 bots (powers switched on through the real play window, winner screen)
+  - a full game against 3 bots
   - English
-  - the Wild +4 challenge panel and stamp, with the chameleon card shown as the reason
-  - a match to 500 into round 2 with points kept
-  - the gift window
+  - the Wild Draw Four challenge
+  - a match to 500 into round 2
+  - the target-picker window
   No page errors.
 - Not yet tried: two real devices in the same online room.
 
 ## Before going live
-- GitHub Pages: Settings → Pages → deploy from `master`, root. The game will then be at
-  erwindank.github.io/unoflex/.
-- Spotify sharing sends people back to this page after logging in, so add
-  `https://erwindank.github.io/unoflex/` to the Spotify app's Redirect URIs.
-- The old Mentiroso copy that was in this folder is kept on the local branch `old-mentiroso-copy`.
+- GitHub Pages: Settings → Pages → deploy from `master`, root (erwindank.github.io/unoflex/).
+- Add `https://erwindank.github.io/unoflex/` to the Spotify app's Redirect URIs.

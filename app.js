@@ -1,5 +1,5 @@
 // ============================================================
-// ¡CAMALEÓN! — online card game with two-colour cards and power tokens
+// ¡CAMALEÓN! — online card game with flex cards and Power Cards (plays by the UNO Flex rules)
 //
 // Same family as UNO Fiesta, UNO Mentiroso, ¡VOLTEA! and VIRUS! (same Firebase project;
 // rooms are tagged game:'camaleon'). Built like ¡VOLTEA!:
@@ -26,15 +26,15 @@ const FIREBASE_CONFIG = {
 // ============================================================
 
 const GAME_TAG    = 'camaleon';   // all the card games share the 'rooms' collection
-const MAX_PLAYERS = 10;
+const MAX_PLAYERS = Engine.MAX_PLAYERS;   // 8: one Power Card each
 const { COLORS, NUMBERS, WILD_COLOR } = Engine;
 
 // Card colours on screen
 const CARD_HEX = { red: '#E0322B', yellow: '#F4B814', green: '#1FA251', blue: '#1F63E0' };
 // Symbol printed on each kind of card
-const SYMBOL = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: '', wild4: '+4', wildCham: '🦎' };
-// The power on each chameleon card
-const POWER_ICON = { rain: '☔', again: '🔁', gift: '🎁', double: '✌️' };
+const SYMBOL = { skip: '⊘', reverse: '⇄', draw2: '+2', wildFlip: '⚡', wildTarget2: '🎯', wildAllDraw: '+2', wild4: '+4' };
+// What the flex side of each card does (shown on the card's 🦎 corner and in the play window)
+const FLEX_ICON = { skip: '⊘⊘', reverse: '⇄⊘', draw2: '+1', wildTarget2: '🎯2', wildAllDraw: '+2', wild4: '🎯4' };
 // Shape per colour for the colour-blind option (menu → Pantalla)
 const CB_GLYPH = { red: '▲', yellow: '●', green: '■', blue: '◆' };
 
@@ -56,57 +56,59 @@ function wildQuadHTML() {
   return `<span class="wild-quad">${COLORS.map(x => `<span class="wq" style="background:${CARD_HEX[x]}"></span>`).join('')}</span>`;
 }
 
-// One card. card = {c, v} plain · {c, c2, v, pw} chameleon · {c:'wild', v} wild
+// One card. card = {c, v, flip?} classic · {c, c2, v, flex} flex · {c:'wild', v, flex?} wild
 //   opts.cls    extra classes        opts.attrs  extra attributes
-//   opts.chosen colour a wild / chameleon card became on the table (coloured ring)
+//   opts.chosen colour named for a wild on the table (coloured ring)
+//   opts.flexUp the card was played on its flex side (the flex corner glows)
 function cardHTML(card, opts = {}) {
   if (!card) return '';
   const wild = card.c === WILD_COLOR;
-  const cham = !!card.c2;
+  const flex = !!card.flex;
   const lbl = symbolOf(card.v);
   const center = wild
-    ? (card.v === 'wildCham'
-        ? `<span class="cham-eye">🦎</span>`
-        : `${wildQuadHTML()}${lbl ? `<span class="wild-extra-label">${lbl}</span>` : ''}`)
+    ? `${wildQuadHTML()}<span class="wild-extra-label">${lbl}</span>`
     : `<span class="card-label center">${lbl}</span>`;
-  // one style attribute for both: a chameleon card is split corner to corner (--c1 top-left,
-  // --c2 bottom-right), and a card on the table can have a ring in its chosen colour
+  // a flex card's second colour is the band across its foot (--c2)
   const vars = [];
-  if (cham) vars.push(`--c1:${CARD_HEX[card.c]}`, `--c2:${CARD_HEX[card.c2]}`);
+  if (card.c2) vars.push(`--c2:${CARD_HEX[card.c2]}`);
   if (opts.chosen) vars.push(`--chosen:${CARD_HEX[opts.chosen]}`);
   const style = vars.length ? ` style="${vars.join(';')}"` : '';
-  const cls = (cham ? `cham c-${card.c} c2-${card.c2}` : `c-${card.c}`) + (opts.chosen ? ' chosen' : '');
-  return `<div class="card ${cls}${opts.cls ? ' ' + opts.cls : ''}" data-v="${card.v}"${cham ? ` data-pw="${card.pw}"` : ''}${style}${opts.attrs || ''}>
+  const cls = `c-${card.c}${flex ? ' flex' : ''}${card.c2 ? ' flex-color' : ''}${opts.chosen ? ' chosen' : ''}${opts.flexUp ? ' flex-up' : ''}`;
+  // the 🦎 corner says what the flex side does (number cards: just the lizard — they only change colour)
+  const fxIcon = FLEX_ICON[card.v] || '';
+  return `<div class="card ${cls}${opts.cls ? ' ' + opts.cls : ''}" data-v="${card.v}"${style}${opts.attrs || ''}>
     <span class="card-oval"></span>
-    <span class="card-label tl">${wild && !lbl ? '★' : (card.v === 'wildCham' ? '★' : lbl)}</span>${center}<span class="card-label br">${wild && !lbl ? '★' : (card.v === 'wildCham' ? '★' : lbl)}</span>
-    ${cham ? `<span class="pw-badge" title="${esc(t('pw.' + card.pw))}">${POWER_ICON[card.pw]}</span>` : ''}
-    ${wild ? '' : `<span class="cb-glyph">${CB_GLYPH[card.c] || ''}${cham ? CB_GLYPH[card.c2] : ''}</span>`}
+    <span class="card-label tl">${lbl}</span>${center}<span class="card-label br">${lbl}</span>
+    ${card.c2 ? `<span class="flex-band"></span>` : ''}
+    ${flex ? `<span class="flex-badge" title="${esc(t('flex.side'))}">🦎${fxIcon ? `<i>${fxIcon}</i>` : ''}</span>` : ''}
+    ${card.flip ? `<span class="flip-badge" title="${esc(t('card.flipIcon'))}">🔄</span>` : ''}
+    ${wild ? '' : `<span class="cb-glyph">${CB_GLYPH[card.c] || ''}${card.c2 ? '/' + CB_GLYPH[card.c2] : ''}</span>`}
   </div>`;
 }
-// Tiny card (winner screen, challenge reveal, gift picker)
+// Tiny card (winner screen, challenge reveal)
 function miniHTML(card) {
   const lbl = symbolOf(card.v);
-  const style = card.c2 ? ` style="--c1:${CARD_HEX[card.c]};--c2:${CARD_HEX[card.c2]}"` : '';
-  return `<span class="mini-face ${card.c2 ? 'cham' : ''} c-${card.c}" data-v="${card.v}"${style} title="${esc(cardName(card))}">${card.c === WILD_COLOR ? (card.v === 'wildCham' ? '🦎' : '✦') : lbl}</span>`;
+  const style = card.c2 ? ` style="--c2:${CARD_HEX[card.c2]}"` : '';
+  return `<span class="mini-face c-${card.c}${card.c2 ? ' flex-color' : ''}${card.flip ? ' flip' : ''}" data-v="${card.v}"${style} title="${esc(cardName(card))}">${lbl}</span>`;
 }
-// "Rojo 5", "Camaleón Rojo/Azul 7", "Comodín +4"…
+// "Rojo 5", "Rojo 5 · flex Azul", "Comodín Roba 4"…
 function cardName(card) {
   if (!card) return '?';
   if (card.c === WILD_COLOR) return t('card.' + card.v);
-  if (card.c2) return t('card.cham', { a: t('color.' + card.c), b: t('color.' + card.c2), v: card.v });
-  return `${t('color.' + card.c)} ${isNumber(card.v) ? card.v : t('card.' + card.v)}`;
+  const base = `${t('color.' + card.c)} ${isNumber(card.v) ? card.v : t('card.' + card.v)}`;
+  return card.c2 ? t('card.flexName', { base, b: t('color.' + card.c2) }) : base;
 }
 // Same as a coloured chip for the log and captions
 function cardChip(card) {
   if (!card) return '?';
   const name = esc(cardName(card));
   if (card.c === WILD_COLOR) return `<span class="lc lc-wild">${name}</span>`;
-  if (card.c2) return `<span class="lc lc-cham" style="--lc:${CARD_HEX[card.c]};--lc2:${CARD_HEX[card.c2]}">${name}</span>`;
+  if (card.c2) return `<span class="lc lc-flex" style="--lc:${CARD_HEX[card.c]};--lc2:${CARD_HEX[card.c2]}">${name}</span>`;
   return `<span class="lc" style="--lc:${CARD_HEX[card.c]}">${name}</span>`;
 }
 const colorChip = c => c && CARD_HEX[c] ? `<span class="lc" style="--lc:${CARD_HEX[c]}">${esc(t('color.' + c))}</span>` : '?';
-// The ⚡ token next to a name: charged or spent
-const tokenHTML = (charged, big) => `<span class="pw-token ${charged ? 'on' : 'off'}${big ? ' big' : ''}" title="${esc(t(charged ? 'tok.on' : 'tok.off'))}">⚡</span>`;
+// The ⚡ Power Card next to a name: green (flex sides allowed) or red (not)
+const tokenHTML = (green, big) => `<span class="pw-token ${green ? 'on' : 'off'}${big ? ' big' : ''}" title="${esc(t(green ? 'tok.on' : 'tok.off'))}">⚡</span>`;
 
 // ============================================================
 // FIREBASE INIT
@@ -908,13 +910,15 @@ function renderGame(state) {
   if (typeof afterGameRender === 'function') afterGameRender(state, firstDraw);
 }
 
-/// The table card, with a ring in the colour it became (wild or chameleon card)
+// The table card, with a ring in the colour named for a wild
 function renderTopCard(state) {
   const el = document.getElementById('top-card');
   const top = state.discard?.[state.discard.length - 1];
   if (!top) { el.innerHTML = ''; return; }
-  const ringed = (top.c === WILD_COLOR || top.c2) && CARD_HEX[state.topColor];
-  el.innerHTML = cardHTML(top, { cls: 'top', chosen: ringed ? state.topColor : null });
+  const ringed = top.c === WILD_COLOR && CARD_HEX[state.topColor];
+  // was it played on its flex side? (the last play event says so)
+  const flexUp = !!state.ev?.list?.some(e => e.t === 'play' && e.flex && e.card?.id === top.id);
+  el.innerHTML = cardHTML(top, { cls: 'top', chosen: ringed ? state.topColor : null, flexUp });
   el.dataset.color = state.topColor || '';
 }
 
@@ -1046,15 +1050,15 @@ function logText(e) {
   const p = e.p || {};
   const out = {};
   for (const [k, v] of Object.entries(p)) out[k] = typeof v === 'string' ? esc(v) : v;
-  if (p.v) out.card = cardChip({ c: p.c, c2: p.c2 || undefined, v: p.v });
+  if (p.v) out.card = cardChip({ c: p.c, c2: p.c2 || undefined, v: p.v }) + (p.flex ? ` <span class="lc-flexside">🦎 ${esc(t('flex.short'))}</span>` : '');
   if (p.color) out.color = colorChip(p.color);
   return t(e.k, out);
 }
 const LOG_CLASS = {
   'log.caught': 'log-uno', 'log.shout': 'log-uno-call', 'log.challengeWon': 'log-truth',
   'log.challengeLost': 'log-lie', 'log.win': 'log-uno-call',
-  'log.pwRain': 'log-power', 'log.pwAgain': 'log-power', 'log.pwGift': 'log-power', 'log.pwDouble': 'log-power',
-  'log.wildCham': 'log-power', 'log.recharge': 'log-charge'
+  'log.skipAll': 'log-power', 'log.reverseSkip': 'log-power', 'log.flexDraw2': 'log-power', 'log.flexAllDraw': 'log-power',
+  'log.target': 'log-power', 'log.wildFlip': 'log-charge', 'log.flipCard': 'log-charge', 'log.allRed': 'log-charge'
 };
 function renderLog(state) {
   const el = document.getElementById('game-log');
@@ -1087,8 +1091,8 @@ async function selectCard(cardId) {
     else showNotice('✋', t('notice.cantTitle'), t('notice.cantBody', { color: colorChip(state.topColor) }));
     return;
   }
-  // Wilds and chameleon cards ask which colour (and, for a chameleon card, the power)
-  if (card.c === WILD_COLOR || card.c2) { openPlayDialog(card); return; }
+  // Wilds ask for a colour; a flex card asks which side (only while my Power Card is green)
+  if (card.c === WILD_COLOR || Engine.canFlex(card, state, localUid)) { openPlayDialog(card); return; }
   await doMove({ t: 'play', id: card.id });
 }
 
@@ -1107,36 +1111,25 @@ async function doMove(move) {
 }
 
 // ---- The play window (bottom sheet) ----
-// Wild: pick one of the four colours. Chameleon card: pick one of its two colours, and —
-// if my ⚡ token is charged — switch its power on (plus who/what for 🎁 Gift / ✌️ Double).
-let playPick = { card: null, color: null, power: false, giftId: null, giftTo: null, extraId: null };
+// Wild: pick the colour. Flex card (Power Card green): normal side or flex side — the flex
+// side of a Target Draw 2 / Wild Draw Four also asks who draws. A flex number/action card
+// whose normal side doesn't fit can only go down on its flex side, so the switch is locked on.
+let playPick = { card: null, color: null, flex: false, target: null };
 
 function openPlayDialog(card) {
   const state = roomState;
   const rest = (state.hands?.[localUid] || []).filter(c => c.id !== card.id);
   colorDialogFor = 'play';
-  playPick = { card, color: null, power: false, giftId: null, giftTo: null, extraId: null };
-  if (card.c2) {
-    // start on the colour I hold more of; the power starts off (spending it is a choice)
-    playPick.color = Engine.bestColor(rest, [card.c, card.c2]);
-    // good defaults for the power's choices: my most awkward card, to whoever is closest to winning
-    const keep = rest.filter(c => c.c !== WILD_COLOR && !c.c2).sort((a, b) => Engine.cardPoints(b) - Engine.cardPoints(a));
-    playPick.giftId = (keep[0] || rest[0])?.id ?? null;
-    const rivals = state.players.filter(p => p.id !== localUid && !p.disconnected).sort((a, b) => a.cardCount - b.cardCount);
-    playPick.giftTo = rivals[0]?.id ?? null;
-  } else {
-    playPick.color = Engine.bestColor(rest);
-  }
-  // the guided game shows the colour its lesson wants already picked (tutorial.js)
+  const mustFlex = !Engine.isPlayable(card, state);
+  playPick = { card, color: card.c === WILD_COLOR ? Engine.bestColor(rest) : null, flex: mustFlex, target: null };
+  // a target to start with: whoever is closest to winning
+  const rivals = state.players.filter(p => p.id !== localUid && !p.disconnected).sort((a, b) => a.cardCount - b.cardCount);
+  playPick.target = rivals[0]?.id ?? null;
+  // the guided game shows what its lesson wants already picked (tutorial.js)
   if (LOCAL_GAME && typeof tutorialPresetPlay === 'function') tutorialPresetPlay(playPick);
   const title = document.getElementById('claim-dialog-title');
-  title.textContent = card.c2 ? t('claim.chamTitle') : (card.v === 'wild' ? t('claim.wildTitle') : t('claim.drawTitle', { card: cardName(card) }));
+  title.textContent = card.c === WILD_COLOR ? t('claim.wildTitle', { card: cardName(card) }) : t('claim.flexTitle');
   document.getElementById('actual-card-preview').innerHTML = cardHTML(card, { cls: 'preview' });
-  // A Wild +4 is only fair with nothing of the colour in play — say so
-  const warn = document.getElementById('claim-warning');
-  const unfair = card.v === 'wild4' && Engine.hadColor(rest, state.topColor);
-  warn.innerHTML = unfair ? t('claim.unfair', { color: colorChip(state.topColor) }) : '';
-  warn.classList.toggle('hidden', !unfair);
   renderPlayDialog();
   document.getElementById('claim-dialog').classList.remove('hidden');
 }
@@ -1144,86 +1137,80 @@ function openPlayDialog(card) {
 function renderPlayDialog() {
   const state = roomState, card = playPick.card;
   if (!state || !card) return;
-  const colors = card.c2 ? [card.c, card.c2] : COLORS;
+  const wild = card.c === WILD_COLOR;
+  // a Wild Draw Four on its normal side is only fair with nothing of the colour (or a wild) in hand
+  const warn = document.getElementById('claim-warning');
+  const rest = (state.hands?.[localUid] || []).filter(c => c.id !== card.id);
+  const unfair = card.v === 'wild4' && !playPick.flex && Engine.hadColor(rest, state.topColor);
+  warn.innerHTML = unfair ? t('claim.unfair', { color: colorChip(state.topColor) }) : '';
+  warn.classList.toggle('hidden', !unfair);
+  // colours: wilds only (a flex card keeps its normal colour)
   const picker = document.getElementById('claim-color-picker');
-  picker.innerHTML = colors.map(c =>
+  picker.innerHTML = wild ? COLORS.map(c =>
     `<button class="color-btn ${playPick.color === c ? 'selected' : ''}" style="--btn:${CARD_HEX[c]}"
       onclick="setClaimColor('${c}')" title="${esc(t('color.' + c))}" aria-label="${esc(t('color.' + c))}"><span>${CB_GLYPH[c]}</span></button>`
-  ).join('');
-  picker.classList.toggle('two', !!card.c2);
+  ).join('') : '';
+  picker.classList.toggle('hidden', !wild);
 
   const box = document.getElementById('power-box');
-  if (!card.c2) { box.classList.add('hidden'); box.innerHTML = ''; updatePlayButton(); return; }
+  if (!card.flex) { box.classList.add('hidden'); box.innerHTML = ''; updatePlayButton(); return; }
   box.classList.remove('hidden');
-  const charged = Engine.hasPower(state, localUid);
-  const rest = (state.hands?.[localUid] || []).filter(c => c.id !== card.id);
+  const green = Engine.hasPower(state, localUid);
+  const can = Engine.canFlex(card, state, localUid);
+  const mustFlex = !Engine.isPlayable(card, state);
+  // the two sides, side by side
+  const normalWhy = t('side.normal.' + (isNumber(card.v) ? 'number' : card.v), { color: colorChip(card.c) });
+  const flexWhy = t('side.flex.' + (isNumber(card.v) ? 'number' : card.v), { color: card.c2 ? colorChip(card.c2) : '', keep: colorChip(card.c) });
   let extra = '';
-  if (playPick.power && card.pw === 'gift') {
+  if (playPick.flex && Engine.TARGETED[card.v]) {
     const rivals = state.players.filter(p => p.id !== localUid && !p.disconnected);
-    extra = rest.length < 2
-      ? `<p class="pw-note">${t('pw.giftLast')}</p>`
-      : `<div class="pw-pick"><span class="pw-pick-label">${t('pw.giftWhat')}</span><div class="pw-cards">${rest.map(c =>
-          `<button type="button" class="pw-card ${playPick.giftId === c.id ? 'sel' : ''}" onclick="setPlayOpt('giftId', ${c.id})">${miniHTML(c)}</button>`).join('')}</div></div>
-        <div class="pw-pick"><span class="pw-pick-label">${t('pw.giftWho')}</span><div class="pw-people">${rivals.map(p =>
-          `<button type="button" class="pw-person ${playPick.giftTo === p.id ? 'sel' : ''}" onclick="setPlayOpt('giftTo', '${esc(p.id)}')">${esc(p.name)} <small>${p.cardCount}🃏</small></button>`).join('')}</div></div>`;
-  }
-  if (playPick.power && card.pw === 'double') {
-    const opts = Engine.doubleOptions(rest, playPick.color);
-    if (!opts.some(c => c.id === playPick.extraId)) playPick.extraId = opts.find(c => isNumber(c.v))?.id ?? opts[0]?.id ?? null;
-    extra = opts.length
-      ? `<div class="pw-pick"><span class="pw-pick-label">${t('pw.doubleWhat', { color: colorChip(playPick.color) })}</span><div class="pw-cards">${opts.map(c =>
-          `<button type="button" class="pw-card ${playPick.extraId === c.id ? 'sel' : ''}" onclick="setPlayOpt('extraId', ${c.id})">${miniHTML(c)}</button>`).join('')}</div></div>`
-      : `<p class="pw-note">${t('pw.doubleNone', { color: colorChip(playPick.color) })}</p>`;
+    extra = `<div class="pw-pick"><span class="pw-pick-label">${t('flex.who', { n: Engine.TARGETED[card.v] })}</span><div class="pw-people">${rivals.map(p =>
+      `<button type="button" class="pw-person ${playPick.target === p.id ? 'sel' : ''}" onclick="setPlayOpt('target', '${esc(p.id)}')">${esc(p.name)} <small>${p.cardCount}🃏</small></button>`).join('')}</div></div>`;
   }
   box.innerHTML = `
-    <button type="button" class="pw-switch ${playPick.power ? 'on' : ''}" ${charged ? '' : 'disabled'} onclick="togglePlayPower()" aria-pressed="${playPick.power}">
-      <span class="pw-switch-icon">${POWER_ICON[card.pw]}</span>
-      <span class="pw-switch-text"><b>${t(charged ? 'pw.use' : 'pw.spent', { power: esc(t('pw.' + card.pw)) })}</b>
-        <small>${t(charged ? 'pw.' + card.pw + 'Why' : 'tok.helpOff')}</small></span>
-      <span class="pw-knob">${tokenHTML(charged)}</span>
-    </button>${extra}`;
+    <div class="side-pick">
+      <button type="button" class="side-opt ${playPick.flex ? '' : 'sel'}" ${mustFlex ? 'disabled' : ''} onclick="setPlaySide(false)">
+        <b>${t('flex.normal')}</b><small>${mustFlex ? t('flex.normalNo') : normalWhy}</small></button>
+      <button type="button" class="side-opt flex ${playPick.flex ? 'sel' : ''}" ${can ? '' : 'disabled'} onclick="setPlaySide(true)">
+        <b>🦎 ${t('flex.flexSide')} ${tokenHTML(green)}</b><small>${can ? flexWhy : t('tok.helpOff')}</small></button>
+    </div>
+    ${playPick.flex ? `<p class="pw-note">${t('flex.cost')}</p>` : ''}${extra}`;
   updatePlayButton();
 }
-// The move the window describes — null while the power is missing what it needs
-// (a card to give and someone to give it to, or a card to drop with ✌️ Double)
+// The move the window describes — null while something is missing (a colour, a target)
 function playMoveFromDialog() {
   const card = playPick.card;
   if (!card || !roomState) return null;
-  const move = { t: 'play', id: card.id, color: playPick.color };
-  if (!card.c2 || !playPick.power) return move;
-  const rest = (roomState.hands?.[localUid] || []).filter(c => c.id !== card.id);
-  if (card.pw === 'gift') {
-    if (rest.length < 2 || playPick.giftId == null || !playPick.giftTo) return null;
-    move.gift = { id: playPick.giftId, to: playPick.giftTo };
+  const move = { t: 'play', id: card.id };
+  if (card.c === WILD_COLOR) { if (!playPick.color) return null; move.color = playPick.color; }
+  if (playPick.flex) {
+    move.flex = true;
+    if (Engine.TARGETED[card.v]) { if (!playPick.target) return null; move.target = playPick.target; }
   }
-  if (card.pw === 'double') {
-    if (playPick.extraId == null) return null;
-    move.extra = playPick.extraId;
-  }
-  move.power = true;
   return move;
 }
 function updatePlayButton() {
   const btn = document.getElementById('claim-play');
-  if (btn) btn.disabled = !playPick.card || !playPick.color || !playMoveFromDialog();
+  if (btn) btn.disabled = !playMoveFromDialog();
 }
 function setClaimColor(color) { playPick.color = color; renderPlayDialog(); FX.play('select'); }
-function togglePlayPower() {
-  if (!Engine.hasPower(roomState, localUid)) return;
-  playPick.power = !playPick.power;
-  FX.play(playPick.power ? 'charge' : 'select');
+function setPlaySide(flex) {
+  if (flex && !Engine.canFlex(playPick.card, roomState, localUid)) return;
+  if (!flex && !Engine.isPlayable(playPick.card, roomState)) return;
+  playPick.flex = flex;
+  FX.play(flex ? 'charge' : 'select');
   renderPlayDialog();
 }
 function setPlayOpt(key, value) { playPick[key] = value; FX.play('select'); renderPlayDialog(); }
 function closeColorDialog() {
   colorDialogFor = null;
-  playPick = { card: null, color: null, power: false, giftId: null, giftTo: null, extraId: null };
+  playPick = { card: null, color: null, flex: false, target: null };
   document.getElementById('claim-dialog').classList.add('hidden');
 }
 function cancelPlay() { closeColorDialog(); }
 async function confirmPlay() {
   let move = playMoveFromDialog();
-  if (!move || !move.color) return;
+  if (!move) return;
   // the guided game may steer the choice (tutorial.js)
   if (LOCAL_GAME && typeof tutorialFixMove === 'function') move = tutorialFixMove(move);
   closeColorDialog();
@@ -2762,7 +2749,7 @@ function showVoiceJoinToast(msg) {
 // BOTS
 // Only the host's device runs them. Bots sit in the players list with ids that start
 // with 'bot_'. Their choices come from Engine.botMove (they only "see" what a person
-// at the table would: their own cards, card counts, the table and everybody's tokens),
+// at the table would: their own cards, card counts, the table and everybody's Power Cards),
 // and their moves are saved through sendMove like anyone else's.
 // ============================================================
 
@@ -2771,16 +2758,16 @@ function botGenUid() { return 'bot_' + Math.random().toString(36).slice(2, 10); 
 
 // Personalities: each bot gets the next free one; its name shows who it is
 const BOT_PERSONAS = {
-  attacker:  { name: 'Petardo',   icon: '💥' },   // loves +2, skips, Wild +4 and ☔ Rain
-  trickster: { name: 'Pintas',    icon: '🦎' },   // plays chameleon cards and powers whenever it can
-  saver:     { name: 'Ahorrador', icon: '🧐' },   // hoards wilds and keeps its token for the end
-  bluffer:   { name: 'Farolero',  icon: '🃏' },   // plays Wild +4 even when it shouldn't
+  attacker:  { name: 'Petardo',   icon: '💥' },   // loves Draw Twos, skips and draw wilds
+  flexer:    { name: 'Pintas',    icon: '🦎' },   // uses flex sides whenever it can
+  saver:     { name: 'Ahorrador', icon: '🧐' },   // hoards wilds and keeps its Power Card green for the end
+  bluffer:   { name: 'Farolero',  icon: '🃏' },   // plays Wild Draw Four even when it shouldn't
   balanced:  { name: 'Robo',      icon: '🤖' }
 };
-const BOT_ORDER = ['attacker', 'trickster', 'saver', 'bluffer', 'balanced'];
+const BOT_ORDER = ['attacker', 'flexer', 'saver', 'bluffer', 'balanced'];
 // Levels (host picks in the lobby):
 //   random    chance of just playing any card it can
-//   challenge how well it reads a Wild +4 bluff (0 = guesses, 1 = sharp)
+//   challenge how well it reads a Wild Draw Four bluff (0 = guesses, 1 = sharp)
 //   shoutMs   how long it takes to shout ¡ÚLTIMA! for itself
 //   catch     chance it catches a person who forgot to shout, after catchMs
 const BOT_LEVELS = {
@@ -2848,7 +2835,7 @@ async function doBotTick() {
     if (err && err !== 'noChange') console.info('[bot]', move.t, err);
   } finally {
     botTickRunning = false;
-    // the move may not have changed whose turn it is (e.g. 🔁 Again, or a Reverse with 2): go again
+    // the move may not have changed whose turn it is (e.g. a flex Skip All, or a Reverse with 2): go again
     if (roomState && isBot(whoActs(roomState))) scheduleBotTick(roomState);
   }
 }

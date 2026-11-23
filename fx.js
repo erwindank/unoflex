@@ -2,11 +2,10 @@
 // FX — sounds, vibration and on-screen effects (¡CAMALEÓN!)
 //
 //   cards fly: every play (from the player's seat — mine from the card's real spot),
-//              draws, penalties, 🎁 gifts and ✌️ doubles
+//              draws and penalties
 //   spotlight: other players' plays stop in the middle with a caption
-//   big moments: 🦎 a chameleon card changing colour, the four ⚡ powers (☔ Rain over
-//              every seat, 🔁 Again, 🎁 Gift, ✌️ Double), tokens recharging / going out,
-//              the Wild Chameleon, challenge stamps with the revealed hand, ¡ÚLTIMA!
+//   big moments: 🦎 flex sides, Skip All, everyone drawing, 🎯 targeted draws, ⚡ Power
+//              Cards flipping (one, everyone, all back to green), challenge stamps, ¡ÚLTIMA!
 //   short synth sound effects (separate switch from the music) + phone vibration
 //   calm mode: no flying or particles, only fades (follows "reduce motion")
 //
@@ -91,16 +90,15 @@ const FX = (() => {
     wild:     () => [392, 494, 587, 784].forEach((f, i) => tone('sine', f, f, .2, .18, i * .07)),
     reverse:  () => { tone('sine', 300, 900, .18, .18); tone('sine', 900, 300, .18, .18, .18); },
     skip:     () => { tone('square', 700, 700, .08, .1); tone('square', 450, 450, .12, .1, .1); },
-    // 🦎 a chameleon card changing colour: a quick shimmer up and back
+    // 🦎 a flex side played: a quick shimmer up and back
     cham:     () => [660, 880, 990, 880].forEach((f, i) => tone('sine', f, f * 1.02, .12, .13, i * .05)),
-    // ⚡ token: charging zaps upward, going out falls away
+    // ⚡ Power Card: to green zaps upward, to red falls away
     charge:   () => { tone('sawtooth', 220, 880, .22, .09); tone('triangle', 880, 1320, .2, .16, .16); },
     drain:    () => { tone('sawtooth', 660, 110, .35, .08); tone('sine', 330, 90, .3, .12, .05); },
-    // the powers
+    // flex effects: everyone draws (a patter), a target is hit, skip all
     rain:     () => { for (let i = 0; i < 9; i++) noise(.05, .2, 3800 + Math.random() * 1500, i * .06 + Math.random() * .03, 2); },
-    again:    () => { tone('triangle', 440, 880, .16, .18); tone('triangle', 660, 1320, .18, .16, .14); },
     gift:     () => [784, 988, 1175, 1568].forEach((f, i) => tone('triangle', f, f, .14, .15, i * .07)),
-    double:   () => { noise(.1, .25, 2600, 0, .8); noise(.1, .25, 2200, .12, .8); },
+    skipAll:  () => [880, 660, 880, 660].forEach((f, i) => tone('square', f, f, .08, .09, i * .09)),
     uno:      () => { tone('triangle', 784, 784, .14, .25); tone('triangle', 1047, 1047, .3, .25, .14); },
     turn:     () => { tone('sine', 660, 660, .18, .22); tone('sine', 990, 990, .3, .2, .14); },
     danger:   () => { tone('sine', 70, 55, .18, .6); tone('sine', 70, 55, .18, .5, .24); },
@@ -319,74 +317,33 @@ const FX = (() => {
     if (roomState?.status === 'playing' && typeof renderOpponents === 'function') renderOpponents(roomState);
   }
 
-  // ---------- ⚡ The four powers ----------
-  async function power(e, state, rush) {
-    const who = nameOf(state, e.pid);
-    setMood(e.pid, 'smug', 3500);
-    switch (e.pw) {
-      case 'rain': {
-        // drops over every other seat, then everybody's +1 flies in (the draw events)
-        play('rain');
-        for (const p of state.players) if (p.id !== e.pid && !p.disconnected) {
-          popIcon(seatRect(p.id), '💧', 1.8, 'fx-drop');
-          setMood(p.id, 'annoyed', 3000);
-        }
-        if (motion()) document.body.classList.add('fx-raining');
-        setTimeout(() => document.body.classList.remove('fx-raining'), 1600);
-        await banner(t('fx.rain'), t('fx.rainSub', { name: who }), 'rain', 900);
-        break;
-      }
-      case 'again':
-        play('again');
-        popIcon(seatRect(e.pid), '🔁', 2.4);
-        spin(seatEl(e.pid)?.querySelector('.seat-face-wrap') || null);
-        if (!rush) await captionFor(t('fx.again'), esc(t('fx.againSub', { name: who })), 900);
-        break;
-      case 'gift': {
-        // a face-down card travels from the giver to the receiver
-        play('gift');
-        popIcon(seatRect(e.pid), '🎁', 2.2);
-        setMood(e.to, 'oops', 3500);
-        if (motion()) await flyCard(backHTML(), seatRect(e.pid), seatRect(e.to));
-        popIcon(seatRect(e.to), '+1', 2, 'fx-plus');
-        if (e.to === localUid) buzz(60);
-        if (!rush) await captionFor(t('fx.gift'), esc(t('fx.giftSub', { name: who, target: nameOf(state, e.to) })), 900);
-        break;
-      }
-      case 'double': {
-        // the second card follows the first onto the pile
-        play('double');
-        const from = e.pid === localUid ? (handRects[e.card?.id] || seatRect(localUid)) : seatRect(e.pid);
-        if (motion() && e.card) await flyCard(cardHTML(e.card), from, pileRect());
-        popIcon(pileRect(), '✌️', 2.4);
-        if (!rush) await captionFor(t('fx.double'), e.card ? cardChip(e.card) : '', 800);
-        break;
-      }
-    }
-  }
-  // ⚡ token recharged (hit by +2 / Wild +4) — or the Wild Chameleon: mine on, everybody else's off
-  async function charge(e, state, rush) {
-    if (e.why === 'wildCham') {
-      play('charge');
-      popIcon(seatRect(e.pid), '⚡', 2.4, 'fx-charge');
-      burst(seatRect(e.pid), BOLT, 16, 80, 'spark');
-      setMood(e.pid, 'smug', 4000);
-      if (e.drained?.length) setTimeout(() => play('drain'), 350);
-      for (const id of e.drained || []) {
-        popIcon(seatRect(id), '⚡', 2, 'fx-drain');
-        setMood(id, 'annoyed', 3500);
-        if (id === localUid) buzz([40, 40, 80]);
-      }
-      await banner(t('fx.wildCham'), t('fx.wildChamSub', { name: nameOf(state, e.pid), n: (e.drained || []).length }), 'cham', 1000);
+  // ---------- ⚡ Power Cards flipping ----------
+  // e.pids = whose cards switched over, e.now = their new state (true = green)
+  async function powerFlip(e, state, rush) {
+    const greens = e.pids.filter((_, i) => e.now[i]);
+    if (greens.length) play('charge'); else play('drain');
+    e.pids.forEach((id, i) => {
+      popIcon(seatRect(id), '⚡', e.pids.length > 1 ? 1.9 : 2.2, e.now[i] ? 'fx-charge' : 'fx-drain');
+      if (e.now[i]) ring(seatRect(id), '#4ade80', 1.6, 4);
+    });
+    if (e.why === 'wildFlip') {
+      burst(pileRect(), BOLT, 18, 90, 'spark');
+      await banner(t('fx.allFlip'), t('fx.allFlipSub', { name: nameOf(state, e.by) }), 'cham', 950);
       return;
     }
-    play('charge');
-    popIcon(seatRect(e.pid), '⚡', 2.2, 'fx-charge');
-    ring(seatRect(e.pid), '#ffe14a', 1.6, 4);
-    if (e.pid === localUid) {
+    if (e.why === 'flipCard' && e.pids[0] === localUid && !rush) {
       buzz(40);
-      if (!rush) await captionFor(t('fx.recharged'), esc(t('fx.rechargedSub')), 900);
+      await captionFor(e.now[0] ? t('fx.greenAgain') : t('fx.redNow'), esc(t('fx.flipCardSub')), 900);
     }
+  }
+  // every Power Card was red → all back to green
+  async function powerReset(state) {
+    play('charge');
+    for (const p of state.players) {
+      popIcon(seatRect(p.id), '⚡', 2, 'fx-charge');
+      ring(seatRect(p.id), '#4ade80', 1.6, 4);
+    }
+    await banner(t('fx.allGreen'), t('fx.allGreenSub'), 'cham', 950);
   }
 
   // ---------- Reading what happened (from the engine's events) ----------
@@ -410,29 +367,54 @@ const FX = (() => {
         const from = mine ? (handRects[card.id] || seatRect(localUid)) : seatRect(e.pid);
         play('play');
         const title = t('fx.played', { name: nameOf(state, e.pid) });
-        // a chameleon card says which colour it turned into
-        const line = cardChip(card) + (card.c2 || card.c === WILD_COLOR ? ` → ${colorChip(e.color)}` : '');
+        // a wild says the colour named; a flex side says so (and the colour that carries on)
+        const line = cardChip(card) + (e.flex ? ` <b class="fx-flexword">🦎 ${esc(t('flex.short'))}</b>` : '') +
+          (card.c === WILD_COLOR || e.flex ? ` → ${colorChip(e.color)}` : '');
         if (!motion()) { if (!mine && !rush) await staticSpot(html, title, line, 700); break; }
-        await flyCard(html, from, pileRect(), mine || rush ? null : { title, line, hold: 650 });
+        await flyCard(cardHTML(card, { flexUp: e.flex }), from, pileRect(), mine || rush ? null : { title, line, hold: 650 });
         ring(pileRect(), CARD_HEX[e.color] || '#fff', 1.7);
-        if (card.c2) {
-          // 🦎 the card shimmers between its two colours and settles on the chosen one
+        if (e.flex) {
+          // 🦎 flex side: the card shimmers and settles on the colour that carries on
           play('cham');
           const top = document.querySelector('#top-card .card');
           top?.classList.remove('cham-settle'); void top?.offsetWidth; top?.classList.add('cham-settle');
-          burst(pileRect(), [CARD_HEX[card.c], CARD_HEX[card.c2], '#ffffff'], 14, 75, 'spark');
-        } else if (card.c === WILD_COLOR) {
+          burst(pileRect(), [CARD_HEX[card.c2] || '#c6f432', CARD_HEX[e.color] || '#fff', '#ffffff'], 14, 75, 'spark');
+        }
+        if (card.c === WILD_COLOR) {
           play('wild');
           ring(pileRect(), CARD_HEX[e.color] || '#fff', 2.4, 5);
           burst(pileRect(), colorsFor(e.color), 16, 80);
         }
         break;
       }
-      case 'power':
-        await power(e, state, rush);
+      case 'powerFlip':
+        await powerFlip(e, state, rush);
         break;
-      case 'charge':
-        await charge(e, state, rush);
+      case 'powerReset':
+        await powerReset(state);
+        break;
+      case 'skipAll':
+        play('skipAll');
+        setMood(e.pid, 'smug', 3500);
+        for (const p of state.players) if (p.id !== e.pid && !p.disconnected) {
+          popIcon(seatRect(p.id), '⊘', 2.2, 'fx-skip');
+          setMood(p.id, 'annoyed', 3000);
+        }
+        if (!rush) await captionFor(t('fx.skipAll'), esc(t('fx.skipAllSub', { name: nameOf(state, e.pid) })), 900);
+        break;
+      case 'flexEffect':
+        // everyone else draws (the draw events after this one fly the cards)
+        play('rain');
+        setMood(e.pid, 'smug', 3500);
+        if (!rush) await captionFor(t('fx.flexAll'), esc(t(e.v === 'draw2' ? 'fx.flexAll1' : 'fx.flexAll2', { name: nameOf(state, e.pid) })), 800);
+        break;
+      case 'target':
+        // a target marker jumps onto the chosen player
+        play('gift');
+        popIcon(seatRect(e.to), '🎯', 2.4);
+        setMood(e.to, 'worried', 3500); setMood(e.pid, 'smug', 3500);
+        if (e.to === localUid) buzz([60, 40, 60]);
+        if (!rush) await captionFor(t('fx.target'), esc(t('fx.targetSub', { name: nameOf(state, e.pid), target: nameOf(state, e.to), n: e.n })), 900);
         break;
       case 'reverse':
         play('reverse');
@@ -464,8 +446,8 @@ const FX = (() => {
         break;
       case 'challengeResult': {
         // Everyone sees the hand the card was played from; cards of the old colour glow
-        // (a chameleon card glows if either of its colours was the one in play)
-        const hand = (e.hand || []).map(c => `<span class="${c.c !== WILD_COLOR && Engine.colorsOf(c).includes(e.prevColor) ? 'rv-hit' : 'rv-dim'}">${miniHTML(c)}</span>`).join('');
+        // (wilds glow too: they count as a match)
+        const hand = (e.hand || []).map(c => `<span class="${c.c === WILD_COLOR || c.c === e.prevColor ? 'rv-hit' : 'rv-dim'}">${miniHTML(c)}</span>`).join('');
         const reveal = `<div class="fx-reveal"><small>${esc(t('fx.handWas', { name: nameOf(state, e.by) }))}</small><div>${hand || '—'}</div></div>`;
         if (e.ok) {
           play('buzzer');
@@ -513,17 +495,20 @@ const FX = (() => {
 // Effect captions
 addStrings({
   'fx.played':   ['{name} juega', '{name} plays'],
-  'fx.again':    ['🔁 ¡Otra vez!', '🔁 Again!'],
-  'fx.againSub': ['{name} vuelve a jugar', '{name} plays again'],
-  'fx.rain':     ['☔ ¡LLUVIA!', '☔ RAIN!'],
-  'fx.rainSub':  ['{name}: todos los demás roban 1', '{name}: everybody else draws 1'],
-  'fx.gift':     ['🎁 ¡Regalo!', '🎁 Gift!'],
-  'fx.giftSub':  ['{name} le pasa una carta a {target}', '{name} hands {target} a card'],
-  'fx.double':   ['✌️ ¡Doble!', '✌️ Double!'],
-  'fx.wildCham': ['🦎 ¡CAMALEÓN!', '🦎 CHAMELEON!'],
-  'fx.wildChamSub': ['{name} recarga su ⚡ y apaga {n} fichas', '{name} recharges their ⚡ and switches off {n} tokens'],
-  'fx.recharged':['⚡ ¡Poder recargado!', '⚡ Power recharged!'],
-  'fx.rechargedSub': ['Úsalo con tu próxima carta camaleón', 'Use it with your next chameleon card'],
+  'fx.skipAll':  ['⊘⊘ ¡Salta a todos!', '⊘⊘ Skip all!'],
+  'fx.skipAllSub': ['{name} vuelve a jugar', '{name} plays again'],
+  'fx.flexAll':  ['🦎 ¡Lado flex!', '🦎 Flex side!'],
+  'fx.flexAll1': ['{name}: todos los demás roban 1', '{name}: everyone else draws 1'],
+  'fx.flexAll2': ['{name}: todos los demás roban 2', '{name}: everyone else draws 2'],
+  'fx.target':   ['🎯 ¡Diana!', '🎯 Target!'],
+  'fx.targetSub':['{name} hace robar {n} a {target}', '{name} makes {target} draw {n}'],
+  'fx.allFlip':  ['⚡ ¡VOLTEA TODOS!', '⚡ ALL FLIP!'],
+  'fx.allFlipSub': ['{name} voltea todas las Cartas de Poder', "{name} flips everyone's Power Card"],
+  'fx.allGreen': ['⚡ ¡TODOS EN VERDE!', '⚡ ALL GREEN!'],
+  'fx.allGreenSub': ['Todas estaban en rojo: vuelven a verde', 'Everyone was red: all back to green'],
+  'fx.greenAgain': ['⚡ ¡Poder en verde!', '⚡ Power green!'],
+  'fx.redNow':   ['⚡ Poder en rojo', '⚡ Power red'],
+  'fx.flipCardSub': ['Tu carta 🔄 volteó tu Carta de Poder', 'Your 🔄 card flipped your Power Card'],
   'fx.reverse':  ['¡Cambio de sentido!', 'Direction reversed!'],
   'fx.uno':      ['¡ÚLTIMA!', 'LAST CARD!'],
   'fx.chSub':    ['{name}: ¿aceptar o desafiar?', '{name}: accept or challenge?'],

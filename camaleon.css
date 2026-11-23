@@ -4,12 +4,13 @@
    Theme: a rainforest table at dusk — deep green felt with a faint pattern of scales,
    a teal accent and a lime "power" glow.
    Cards:
-     .card.c-red …          plain card — solid colour, a white leaf in the middle
-     .card.cham             chameleon card — split corner to corner (--c1 / --c2), the number
-                            in both colours, and its power (☔ 🔁 🎁 ✌️) in the top corner
-     .card.c-wild           wilds — black; the Wild Chameleon has a rainbow ring and a 🦎
+     .card.c-red …          classic card — solid colour, a white leaf in the middle (🔄 badge
+                            when it carries the flip icon)
+     .card.flex             flex card — the 🦎 corner says what its flex side does; flex number /
+                            action cards also have a band of their flex colour (--c2) across the foot
+     .card.c-wild           wilds — black with the four colours
      .card.card-back-cham   back of a card (draw pile, cards flying from the deck)
-   ⚡ tokens: .pw-token.on (charged, glowing) / .pw-token.off (spent, grey)
+   ⚡ Power Cards: .pw-token.on (green: flex sides allowed) / .pw-token.off (red)
    ============================================================ */
 
 /* ---------- Theme tokens ---------- */
@@ -50,61 +51,53 @@ body { background: var(--bg); }
   box-shadow: 0 0 0 3px rgba(255,255,255,.25), 0 2px 6px rgba(0,0,0,.22);
 }
 .card .card-label.tl, .card .card-label.br { color: #fff; font-weight: 900; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
-.card.c-yellow:not(.cham) .card-label.tl, .card.c-yellow:not(.cham) .card-label.br { color: #3a2a00; text-shadow: none; }
+.card.c-yellow .card-label.tl, .card.c-yellow:not(.flex-color) .card-label.br { color: #3a2a00; text-shadow: none; }
 .card .card-label.center { color: var(--ink); font-family: 'Oswald', 'Segoe UI', sans-serif; letter-spacing: -.5px; }
 
 /* 6 and 9 look alike upside down: underline them, like real cards */
 .card[data-v="6"] .card-label, .card[data-v="9"] .card-label { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1.5px; }
 
-/* ---------- Chameleon card: two colours corner to corner ---------- */
-.card.cham {
-  background: linear-gradient(135deg, var(--c1) 0 49.5%, var(--c2) 50.5% 100%);
-  border-color: #fff;
+/* ---------- Flex card: a band of the flex colour across the foot + the 🦎 corner ---------- */
+.card .flex-band {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 24%; z-index: 0;
+  background: var(--c2); border-top: 2px solid #fff;
 }
-.card.cham .card-oval { box-shadow: 0 0 0 3px rgba(255,255,255,.3), 0 0 10px rgba(0,0,0,.25); }
-/* the number painted in both colours */
-.card.cham .card-label.center {
-  background: linear-gradient(135deg, var(--c1) 0 48%, var(--c2) 52% 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  -webkit-text-stroke: .6px rgba(0,0,0,.28);
+.card.flex-color .card-label.br { z-index: 2; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+/* the 🦎 corner (bottom left, clear of the ✓/✕ hand badge): what the flex side does */
+.card .flex-badge {
+  position: absolute; bottom: 3px; left: 3px; z-index: 2; height: 17px; min-width: 17px; padding: 0 3px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; gap: 1px; font-size: 9px; line-height: 1;
+  background: rgba(8,24,20,.85); border: 1px solid rgba(255,255,255,.75); color: #fff;
 }
-/* the power, in the top-right corner */
-.card .pw-badge {
-  position: absolute; top: 3px; right: 3px; z-index: 2; width: 17px; height: 17px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; font-size: 9px; line-height: 1;
-  background: rgba(8,24,20,.82); border: 1px solid rgba(255,255,255,.75);
-  box-shadow: 0 0 6px rgba(198,244,50,.55);
+.card .flex-badge i { font-style: normal; font-family: 'Oswald', 'Segoe UI', sans-serif; font-weight: 700; font-size: 8px; color: var(--glow); }
+#top-card .card .flex-badge, .zoom-card .card .flex-badge, .card-preview .card .flex-badge { height: 21px; font-size: 11px; }
+#top-card .card .flex-badge i, .zoom-card .card .flex-badge i, .card-preview .card .flex-badge i { font-size: 10px; }
+/* the 🔄 flip icon on some classic number cards (bottom left) */
+.card .flip-badge {
+  position: absolute; bottom: 3px; left: 3px; z-index: 2; width: 17px; height: 17px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 10px;
+  background: rgba(8,24,20,.85); border: 1px solid #4ade80; box-shadow: 0 0 6px rgba(74,222,128,.6);
 }
-#top-card .card .pw-badge, .zoom-card .card .pw-badge, .card-preview .card .pw-badge { width: 22px; height: 22px; font-size: 12px; }
+/* played on its flex side: the flex corner and band light up */
+.card.flex-up { box-shadow: 0 0 0 3px var(--glow), 0 0 20px rgba(198,244,50,.55), 2px 4px 12px rgba(0,0,0,.55); }
+.card.flex-up .flex-band { box-shadow: inset 0 0 12px rgba(255,255,255,.55); }
+.card.flex-up .flex-badge { background: var(--glow); color: #12301f; }
+.card.flex-up .flex-badge i { color: #12301f; }
 
 /* ---------- Wilds ---------- */
 .card.c-wild { background: #101614; border-color: rgba(255,255,255,.75); }
 .card.c-wild .card-oval { display: none; }
 .card.c-wild .card-label.tl, .card.c-wild .card-label.br { color: #fff; }
 .card .wild-extra-label { font-family: 'Oswald', 'Segoe UI', sans-serif; font-size: 1rem; bottom: 12px; }
-/* Wild Chameleon: a turning rainbow ring with the 🦎 inside */
-.card[data-v="wildCham"] { background: radial-gradient(circle at 50% 45%, #183a30 0 36%, #0b1411 37% 100%); }
-.card[data-v="wildCham"]::before {
-  content: ''; position: absolute; left: 50%; top: 50%; width: 68%; aspect-ratio: 1; border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: conic-gradient(#E0322B, #F4B814, #1FA251, #1F63E0, #E0322B);
-  -webkit-mask: radial-gradient(circle, transparent 56%, #000 58%); mask: radial-gradient(circle, transparent 56%, #000 58%);
-  animation: cham-ring 6s linear infinite;
-}
-.card .cham-eye { position: relative; z-index: 1; font-size: 1.45rem; line-height: 1; filter: drop-shadow(0 0 6px rgba(198,244,50,.6)); }
-#top-card .card .cham-eye { font-size: 2rem; }
-@keyframes cham-ring { to { transform: translate(-50%, -50%) rotate(360deg); } }
-body.calm .card[data-v="wildCham"]::before { animation: none; }
-
-/* A wild / chameleon card on the table shows the colour it became as a glowing ring */
+/* A wild on the table shows the colour that was named as a glowing ring */
 .card.chosen { box-shadow: 0 0 0 4px var(--chosen), 0 0 22px var(--chosen), 2px 4px 12px rgba(0,0,0,.55); }
-/* …and shimmers through colours when it lands (fx.js adds .cham-settle) */
+/* a card played on its flex side shimmers when it lands (fx.js adds .cham-settle) */
 .card.cham-settle { animation: cham-settle .9s ease-out; }
 @keyframes cham-settle {
-  0%   { filter: hue-rotate(0deg) saturate(1.5) brightness(1.15); transform: scale(1.12); }
-  55%  { filter: hue-rotate(260deg) saturate(1.4); }
-  100% { filter: none; transform: none; }
+  0%   { transform: scale(1.12); filter: brightness(1.35); }
+  100% { transform: none; filter: none; }
 }
+
 body.calm .card.cham-settle { animation: none; }
 
 /* Colour-blind shapes (menu → Pantalla) */
@@ -134,12 +127,12 @@ body.colorblind .color-btn span { display: block; }
   width: 15px; height: 15px; border-radius: 50%; font-size: 9px; line-height: 1; margin-right: 3px; vertical-align: -2px;
 }
 .pw-token.on {
-  background: radial-gradient(circle at 40% 35%, #fbffd6, #c6f432 55%, #6a9a0c);
-  box-shadow: 0 0 8px rgba(198,244,50,.85); animation: token-glow 2.4s ease-in-out infinite;
+  background: radial-gradient(circle at 40% 35%, #dcfce7, #4ade80 55%, #15803d);
+  box-shadow: 0 0 8px rgba(74,222,128,.85); animation: token-glow 2.4s ease-in-out infinite;
 }
-.pw-token.off { background: #24312d; border: 1px solid #6b8279; color: #9fb3ab; filter: grayscale(1); opacity: .85; }
+.pw-token.off { background: radial-gradient(circle at 40% 35%, #fecaca, #ef4444 55%, #991b1b); border: 1px solid #fca5a5; }
 .pw-token.big { width: 22px; height: 22px; font-size: 12px; margin: 0; }
-@keyframes token-glow { 0%,100% { box-shadow: 0 0 6px rgba(198,244,50,.7); } 50% { box-shadow: 0 0 13px rgba(198,244,50,1); } }
+@keyframes token-glow { 0%,100% { box-shadow: 0 0 6px rgba(74,222,128,.7); } 50% { box-shadow: 0 0 13px rgba(74,222,128,1); } }
 body.calm .pw-token.on { animation: none; }
 
 /* my token, next to the hand label */
@@ -149,8 +142,8 @@ body.calm .pw-token.on { animation: none; }
   font-size: .72rem; font-weight: 700; letter-spacing: .2px; white-space: nowrap;
   background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.14); cursor: help;
 }
-.my-power.on { color: var(--glow); border-color: rgba(198,244,50,.45); }
-.my-power.off { color: var(--muted); }
+.my-power.on { color: #86efac; border-color: rgba(74,222,128,.5); }
+.my-power.off { color: #fca5a5; border-color: rgba(239,68,68,.45); }
 
 /* ---------- Table ---------- */
 #screen-game { background: var(--table-grad); }
@@ -209,9 +202,10 @@ body.calm .pw-token.on { animation: none; }
   text-shadow: 0 1px 1px rgba(0,0,0,.45);
 }
 .mini-face.c-yellow { color: #3a2a00; text-shadow: none; }
-.mini-face.cham { background: linear-gradient(135deg, var(--c1) 0 49%, var(--c2) 51% 100%); color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.mini-face.flex-color { background: linear-gradient(180deg, var(--cc) 0 68%, var(--c2) 70% 100%); }
+.mini-face.flip { box-shadow: 0 0 0 1px #4ade80, 0 0 5px rgba(74,222,128,.7); }
 .mini-face.c-wild { background: conic-gradient(#E0322B 0 25%, #1F63E0 0 50%, #1FA251 0 75%, #F4B814 0); color: #fff; text-shadow: 0 0 2px #000; }
-.mini-face[data-v="wildCham"] { background: #101614; font-size: 9px; }
+.mini-face.c-wild { font-size: 7px; }
 
 /* ---------- Hand ---------- */
 .player-hand .card.cant { filter: saturate(.55) brightness(.78); }
@@ -219,8 +213,10 @@ body.calm .pw-token.on { animation: none; }
 
 /* ---------- Log chips ---------- */
 .lc { color: color-mix(in srgb, var(--lc) 72%, white); font-weight: 800; }
-/* chameleon cards: plain white text on an underline in its two colours (easy to read in the log) */
-.lc-cham { color: #fff; border-bottom: 2px solid transparent; border-image: linear-gradient(90deg, var(--lc) 50%, var(--lc2) 50%) 1; }
+/* flex cards: the name in its normal colour, underlined in its flex colour */
+.lc-flex { color: color-mix(in srgb, var(--lc) 72%, white); font-weight: 800; border-bottom: 2px solid var(--lc2); }
+.lc-flexside { color: var(--glow); font-weight: 800; font-size: .9em; }
+.fx-flexword { color: var(--glow); }
 /* wilds: white text on a four-colour underline */
 .lc-wild { color: #fff; font-weight: 800; border-bottom: 2px solid transparent; border-image: linear-gradient(90deg, #ff5a5a 25%, #ffd24a 25% 50%, #4ade80 50% 75%, #60a5fa 75%) 1; }
 .log-entry.log-power { color: #fff; text-shadow: 0 0 10px rgba(198,244,50,.55); }
@@ -232,36 +228,24 @@ body.calm .pw-token.on { animation: none; }
 .claim-color-picker { justify-content: center; }
 .color-btn { width: 48px; height: 48px; border-radius: 50%; }
 /* a chameleon card only offers its two colours: bigger buttons */
-.claim-color-picker.two { gap: 1.2rem; }
-.claim-color-picker.two .color-btn { width: 60px; height: 60px; }
+/* normal side / flex side, next to each other */
+.side-pick { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.side-opt {
+  display: flex; flex-direction: column; gap: .25rem; padding: .6rem .65rem; text-align: left; cursor: pointer;
+  border-radius: 12px; background: var(--bg); border: 1.5px solid var(--border); color: var(--text);
+}
+.side-opt b { font-size: .86rem; display: flex; align-items: center; gap: .3rem; }
+.side-opt small { font-size: .74rem; color: var(--muted); line-height: 1.35; }
+.side-opt small .lc { font-size: inherit; }
+.side-opt:disabled { opacity: .5; cursor: not-allowed; }
+.side-opt.sel { border-color: #fff; box-shadow: 0 0 0 1px #fff; }
+.side-opt.flex.sel { border-color: var(--glow); background: rgba(198,244,50,.1); box-shadow: 0 0 14px rgba(198,244,50,.25); }
 #claim-play:disabled { opacity: .45; cursor: not-allowed; }
 
 .power-box { display: flex; flex-direction: column; gap: .55rem; }
-.pw-switch {
-  display: flex; align-items: center; gap: .65rem; width: 100%; padding: .6rem .7rem; text-align: left;
-  border-radius: 12px; background: var(--bg); border: 1.5px solid var(--border); color: var(--text); cursor: pointer;
-  transition: border-color .15s, box-shadow .15s, background .15s;
-}
-.pw-switch:disabled { cursor: not-allowed; opacity: .7; }
-.pw-switch-icon { font-size: 1.6rem; line-height: 1; }
-.pw-switch-text { display: flex; flex-direction: column; gap: .15rem; flex: 1; min-width: 0; }
-.pw-switch-text b { font-size: .88rem; }
-.pw-switch-text small { font-size: .74rem; color: var(--muted); line-height: 1.35; }
-/* the knob: an empty track, the token slides across when it's on */
-.pw-knob {
-  position: relative; width: 44px; height: 24px; border-radius: 12px; flex-shrink: 0;
-  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
-}
-.pw-knob .pw-token { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; margin: 0; transition: left .18s; }
-.pw-switch.on { border-color: var(--glow); background: rgba(198,244,50,.1); box-shadow: 0 0 14px rgba(198,244,50,.25); }
-.pw-switch.on .pw-knob { background: rgba(198,244,50,.3); border-color: var(--glow); }
-.pw-switch.on .pw-knob .pw-token { left: 24px; }
 .pw-pick { display: flex; flex-direction: column; gap: .3rem; }
 .pw-pick-label { font-size: .75rem; color: var(--muted); font-weight: 600; }
-.pw-cards, .pw-people { display: flex; flex-wrap: wrap; gap: .3rem; }
-.pw-card { padding: 3px; border-radius: 7px; background: transparent; border: 2px solid transparent; cursor: pointer; }
-.pw-card .mini-face { width: 24px; height: 34px; font-size: 12px; border-radius: 4px; }
-.pw-card.sel { border-color: var(--glow); box-shadow: 0 0 10px rgba(198,244,50,.5); }
+.pw-people { display: flex; flex-wrap: wrap; gap: .3rem; }
 .pw-person {
   padding: .35rem .65rem; border-radius: 999px; font-size: .78rem; font-weight: 700; cursor: pointer;
   background: var(--bg); color: var(--text); border: 1.5px solid var(--border);
@@ -286,8 +270,8 @@ body.calm .pw-token.on { animation: none; }
 /* ---------- Power effects (fx.js) ---------- */
 .fx-banner-rain { background: linear-gradient(90deg, #0f3b5e, #4aa3df 50%, #0f3b5e); color: #eaf6ff; }
 .fx-banner-cham { background: linear-gradient(90deg, #E0322B, #F4B814 30%, #1FA251 60%, #1F63E0); color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.45); }
-.fx-icon.fx-charge { color: #ffe14a; text-shadow: 0 0 14px #c6f432, 0 0 28px #c6f432; }
-.fx-icon.fx-drain { filter: grayscale(1); opacity: .8; text-decoration: line-through; text-decoration-thickness: 3px; text-decoration-color: #ff5a5a; }
+.fx-icon.fx-charge { text-shadow: 0 0 14px #4ade80, 0 0 28px #4ade80; }
+.fx-icon.fx-drain { text-shadow: 0 0 14px #ef4444, 0 0 28px #ef4444; filter: saturate(.6); }
 .fx-icon.fx-drop { filter: drop-shadow(0 0 6px #4aa3df); }
 /* ☔ Rain: streaks fall over the table for a moment */
 body.fx-raining #screen-game::after {
