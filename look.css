@@ -411,3 +411,90 @@ body.calm .opponent.active-player .seat-ring::before, body.calm .seat-pill-uno {
   .title-fan .card { width: 40px !important; height: 60px !important; }
   .game-title .title-main { margin-top: -6px; }
 }
+
+/* ============================================================
+   6. GAME FONT + MATCHING BUTTONS
+   Nunito for reading, Lilita One (round and bold) for titles, messages and buttons.
+   Every button gets the same chunky look that presses down when tapped. Emoji stay.
+   ============================================================ */
+body { font-family: var(--lk-body); }
+h1, h2, h3,
+.game-status, .fx-banner b, .winner-name, #winner-title,
+.btn-uno-mega, .uno-call-label, .coach-step {
+  font-family: var(--lk-display) !important;
+  font-weight: 400;
+  letter-spacing: .3px;
+}
+h2 { text-wrap: balance; }
+.game-status { font-size: 1.2rem; }
+.game-status.my-turn {
+  font-size: 1.45rem; color: var(--lk-lime);
+  -webkit-text-stroke: 1.5px var(--lk-out); paint-order: stroke fill;
+  text-shadow: 2px 3px 0 var(--lk-out), 0 0 18px rgba(198,244,50,.4);
+}
+.game-status.other-turn {
+  color: #a7f3d0;
+  -webkit-text-stroke: 1.2px var(--lk-out); paint-order: stroke fill;
+  text-shadow: 2px 2px 0 var(--lk-out);
+}
+/* turn order bar: room between the label and the name */
+.toi-item { gap: .4rem; }
+.toi-label { letter-spacing: .8px; font-weight: 800; }
+.toi-name { font-family: var(--lk-display); font-weight: 400; font-size: .85rem; letter-spacing: .3px; }
+.hand-label { font-weight: 800; letter-spacing: 1px; }
+
+/* ---- buttons ---- */
+.btn {
+  font-family: var(--lk-display); font-weight: 400; letter-spacing: .4px;
+  border-radius: 12px;
+  transition: transform .08s, box-shadow .08s, background .15s, filter .15s;
+}
+.btn:active:not(:disabled) { transform: translateY(2px); }
+.btn-primary   { background: #0d9488; color: #fff; box-shadow: 0 3px 0 #075c55, 0 6px 12px rgba(0,0,0,.3); }
+.btn-secondary { background: #1d5a4a; color: #fff; box-shadow: 0 3px 0 #0a2a22, 0 6px 12px rgba(0,0,0,.3); }
+.btn-danger    { background: linear-gradient(180deg, #ef4a43, #c42520); color: #fff; box-shadow: 0 3px 0 #7a110c, 0 6px 12px rgba(0,0,0,.3); }
+.btn-ghost     { background: rgba(255,255,255,.07); color: #dff7ec; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+.btn-primary:hover:not(:disabled), .btn-secondary:hover:not(:disabled),
+.btn-danger:hover:not(:disabled),  .btn-ghost:hover:not(:disabled) { filter: brightness(1.12); }
+.btn-primary:active:not(:disabled), .btn-secondary:active:not(:disabled),
+.btn-danger:active:not(:disabled),  .btn-ghost:active:not(:disabled) { box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+.btn:focus-visible, .lang-btn:focus-visible, .link-btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+/* top bar: one style for 📖 🎤 💬 ⚙️ and Salir */
+.game-topbar { background: rgba(4,22,18,.6); }
+.game-topbar .btn-sm {
+  display: inline-flex; align-items: center; justify-content: center; gap: .3rem;
+  min-width: 40px; min-height: 38px;
+  padding: .2rem .7rem;
+  font-size: .95rem;
+  border-radius: 12px;
+  border: 0;
+  background: linear-gradient(180deg, #1f5245, #133a30);
+  color: #fff;
+  box-shadow: 0 3px 0 #061a15, inset 0 0 0 1px rgba(255,255,255,.1);
+}
+.game-topbar .btn-sm.btn-danger { background: linear-gradient(180deg, #ef4a43, #c42520); box-shadow: 0 3px 0 #7a110c; }
+.game-topbar .btn-sm:active { transform: translateY(2px); box-shadow: 0 1px 0 #061a15; }
+.game-topbar .game-room-code { border-radius: 10px; min-height: 34px; font-family: var(--lk-display); font-weight: 400; font-size: .85rem; }
+/* "📖 Reglas": the word shows when there is room */
+.tb-label { font-size: .85rem; }
+@media (max-width: 520px) {
+  .tb-label { display: none; }
+}
+@media (max-width: 480px) {
+  .game-topbar .btn-sm { min-width: 34px; min-height: 32px; padding: .15rem .45rem; font-size: .85rem; }
+}
+/* the settings menu keeps its own small buttons */
+.game-menu .btn-sm { min-height: 0; box-shadow: none; }
+
+/* language switch */
+.lang-switch { border: 0; border-radius: 99px; background: rgba(0,0,0,.35); padding: 2px; }
+.lang-btn { background: transparent; color: #dff7ec; border-radius: 99px; font-weight: 900; }
+.lang-btn.selected { background: var(--lk-lime); color: var(--lk-out); }
+/* keep the turn-order line on one row on phones */
+.turn-order-info { white-space: nowrap; gap: .4rem; }
+.toi-name { max-width: 28vw; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 480px) {
+  .toi-name { font-size: .72rem; }
+  .toi-label { font-size: .52rem; letter-spacing: .4px; }
+}

@@ -157,12 +157,15 @@ function fitHand() {
   if (!hand || !cards.length) return;
   hand.classList.add('fitted');
   const n = cards.length, w = cards[0].offsetWidth || 60;
-  const avail = hand.clientWidth - 8;
+  // new look: a rounder fan (up to 5° between cards, less when the hand is big)
+  const fan = n > 1 ? Math.min(5, 30 / n) : 0;
+  // the outer cards lean out of the row: keep room for that so they stay on screen
+  const lean = Math.sin(fan * (n - 1) / 2 * Math.PI / 180) * (cards[0].offsetHeight || 90) * 0.7;
+  const avail = hand.clientWidth - 8 - 2 * lean;
   const overlap = n > 1 ? Math.min(w * 0.72, Math.max(0, (n * w - avail) / (n - 1) + 2)) : 0;
   const k = Math.min(2.6, 60 / (n * n));
   hand.style.setProperty('--overlap', overlap + 'px');
-  // new look: a rounder fan (up to 5° between cards, less when the hand is big)
-  hand.style.setProperty('--fan', (n > 1 ? Math.min(5, 30 / n) : 0) + 'deg');
+  hand.style.setProperty('--fan', fan + 'deg');
   cards.forEach((el, i) => {
     const off = i - (n - 1) / 2;
     el.style.setProperty('--i', i);
